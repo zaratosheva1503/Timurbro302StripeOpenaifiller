@@ -701,34 +701,65 @@ async function fillCardForm() {
 
           // Find exact match first, then partial match
           let matchedOption = null;
+          let matchedIndex = -1;
 
-          for (const opt of options) {
+          for (let i = 0; i < options.length; i++) {
+            const opt = options[i];
             const optText = opt.textContent.trim();
             // Exact match (case insensitive)
             if (optText.toLowerCase() === targetState.toLowerCase()) {
               matchedOption = opt;
-              console.log('[Zarif] Google Pay: Exact state match found:', optText);
+              matchedIndex = i;
+              console.log('[Zarif] Google Pay: Exact state match found:', optText, 'at index', i);
               break;
             }
           }
 
           // If no exact match, try partial but prioritize starts-with
           if (!matchedOption) {
-            for (const opt of options) {
+            for (let i = 0; i < options.length; i++) {
+              const opt = options[i];
               const optText = opt.textContent.trim().toLowerCase();
               if (optText.startsWith(targetState.toLowerCase())) {
                 matchedOption = opt;
-                console.log('[Zarif] Google Pay: Partial state match found:', opt.textContent.trim());
+                matchedIndex = i;
+                console.log('[Zarif] Google Pay: Partial state match found:', opt.textContent.trim(), 'at index', i);
                 break;
               }
             }
           }
 
           if (matchedOption) {
+            console.log('[Zarif] Attempting to select state with value:', matchedOption.value);
+
+            // Focus on dropdown first
+            dropdown.focus();
+            await sleep(100);
+
+            // Dispatch mousedown to simulate clicking
+            dropdown.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+            await sleep(50);
+
+            // Set the selected index
+            dropdown.selectedIndex = matchedIndex;
+
+            // Also set value directly
             dropdown.value = matchedOption.value;
-            dropdown.dispatchEvent(new Event('change', { bubbles: true }));
+
+            // Mark the option as selected
+            matchedOption.selected = true;
+
+            // Dispatch all possible events
             dropdown.dispatchEvent(new Event('input', { bubbles: true }));
-            console.log('✅ Google Pay: State selected:', matchedOption.textContent.trim());
+            dropdown.dispatchEvent(new Event('change', { bubbles: true }));
+            dropdown.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+            dropdown.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+            // Blur to finalize
+            await sleep(100);
+            dropdown.dispatchEvent(new Event('blur', { bubbles: true }));
+
+            console.log('✅ Google Pay: State selected:', matchedOption.textContent.trim(), 'selectedIndex:', dropdown.selectedIndex);
           } else {
             console.log('[Zarif] Google Pay: State NOT found in dropdown:', targetState);
           }
