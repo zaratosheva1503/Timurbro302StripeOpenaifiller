@@ -117,7 +117,7 @@ function initializeGenerateTab() {
 
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
-    if (!tab.url.includes('checkout.stripe.com') && !tab.url.includes('pay.openai.com') && !tab.url.includes('chatgpt.com/checkout')) {
+    if (!tab.url.includes('checkout.stripe.com') && !tab.url.includes('pay.openai.com') && !tab.url.includes('chatgpt.com')) {
       updateStatus('❌ Please open a Stripe, OpenAI, or ChatGPT payment page first!', 'error');
       return;
     }
@@ -266,7 +266,7 @@ function loadPrecards() {
 async function usePrecard(cardIndex) {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
-  if (!tab.url || (!tab.url.includes('checkout.stripe.com') && !tab.url.includes('pay.openai.com') && !tab.url.includes('chatgpt.com/checkout'))) {
+  if (!tab.url || (!tab.url.includes('checkout.stripe.com') && !tab.url.includes('pay.openai.com') && !tab.url.includes('chatgpt.com'))) {
     updatePrecardStatus('❌ Please open a Stripe, OpenAI, or ChatGPT payment page first!', 'error');
     return;
   }

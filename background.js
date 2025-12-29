@@ -65,7 +65,7 @@ function randomChoice(arr) {
 }
 
 // ===== HARDCODED CONFIGURATION FOR OPENAI =====
-const EXTENSION_VERSION = '6.0.6';
+const EXTENSION_VERSION = '6.0.7';
 
 // Hardcoded BIN and Expiry for South Korea (default)
 const HARDCODED_BIN = '625814260257';

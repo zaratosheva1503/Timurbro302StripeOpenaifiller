@@ -1,5 +1,8 @@
 let isProcessing = false;
 
+// Check if we're inside a Stripe iframe
+const isStripeIframe = window.location.hostname.includes('js.stripe.com');
+
 function waitForElement(selector, timeout = 10000) {
   return new Promise((resolve, reject) => {
     const startTime = Date.now();
@@ -21,6 +24,68 @@ function waitForElement(selector, timeout = 10000) {
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Try to fill Stripe Elements iframes
+async function tryFillStripeIframes(card) {
+  console.log('[Zarif] Attempting to fill Stripe iframes...');
+  
+  // Find all Stripe iframes
+  const iframes = document.querySelectorAll('iframe[src*="stripe"], iframe[name*="__privateStripeFrame"], iframe[title*="Secure"]');
+  
+  if (iframes.length === 0) {
+    console.log('[Zarif] No Stripe iframes found');
+    return false;
+  }
+
+  console.log(`[Zarif] Found ${iframes.length} potential Stripe iframes`);
+
+  // Send message to each iframe via chrome.runtime to fill the inputs
+  for (const iframe of iframes) {
+    try {
+      // Try to access iframe content (will fail for cross-origin)
+      const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+      if (iframeDoc) {
+        // Same-origin iframe - fill directly
+        const inputs = iframeDoc.querySelectorAll('input');
+        for (const input of inputs) {
+          const name = (input.name || '').toLowerCase();
+          const placeholder = (input.placeholder || '').toLowerCase();
+          const autocomplete = (input.autocomplete || '').toLowerCase();
+          
+          if (name.includes('cardnumber') || autocomplete.includes('cc-number') || placeholder.includes('card')) {
+            await fillInputInIframe(input, card.card_number);
+          } else if (name.includes('exp') || autocomplete.includes('cc-exp') || placeholder.includes('mm')) {
+            const expiryStr = `${card.expiry_month}/${card.expiry_year.slice(-2)}`;
+            await fillInputInIframe(input, expiryStr);
+          } else if (name.includes('cvc') || autocomplete.includes('cc-csc') || placeholder.includes('cvc') || placeholder.includes('security')) {
+            await fillInputInIframe(input, card.cvv);
+          }
+        }
+        return true;
+      }
+    } catch (e) {
+      console.log('[Zarif] Cannot access iframe directly (cross-origin):', e.message);
+    }
+  }
+
+  return false;
+}
+
+async function fillInputInIframe(input, value) {
+  input.focus();
+  input.value = '';
+  for (const char of value) {
+    input.value += char;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: char, bubbles: true }));
+    input.dispatchEvent(new KeyboardEvent('keypress', { key: char, bubbles: true }));
+    input.dispatchEvent(new KeyboardEvent('keyup', { key: char, bubbles: true }));
+    await sleep(30);
+  }
+  input.dispatchEvent(new Event('change', { bubbles: true }));
+  input.dispatchEvent(new Event('blur', { bubbles: true }));
+  console.log(`[Zarif] Filled iframe input with value length: ${value.length}`);
 }
 
 async function fillCardForm() {
@@ -156,11 +221,17 @@ async function fillCardForm() {
       cardNumberInput = findInputByLabel('Card number') || findInputByPlaceholder('card');
     }
 
+    // Try to fill Stripe iframes if on ChatGPT checkout
+    let filledViaIframe = false;
+    if (isChatGPTCheckout) {
+      filledViaIframe = await tryFillStripeIframes(card);
+    }
+
     if (cardNumberInput) {
       console.log('✅ Found card number input');
       await simulateTyping(cardNumberInput, card.card_number);
       await sleep(400);
-    } else {
+    } else if (!filledViaIframe) {
       console.log('❌ Card number input not found, trying alternative approach');
       // Try to find any visible card-related input
       const allInputs = document.querySelectorAll('input');
@@ -740,7 +811,49 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   } else if (request.action === 'fillFormWithPrecard') {
     fillCardFormWithPrecard(request.card, request.randomData);
     sendResponse({ success: true });
+  } else if (request.action === 'fillStripeInput') {
+    // Handle filling input inside Stripe iframe
+    fillStripeIframeInput(request.fieldType, request.value);
+    sendResponse({ success: true });
   }
   return true;
 });
+
+// Function to fill inputs inside Stripe iframes
+async function fillStripeIframeInput(fieldType, value) {
+  const simulateTyping = async (element, val) => {
+    element.focus();
+    element.value = '';
+    for (const char of val) {
+      element.value += char;
+      element.dispatchEvent(new Event('input', { bubbles: true }));
+      element.dispatchEvent(new KeyboardEvent('keydown', { key: char, bubbles: true }));
+      element.dispatchEvent(new KeyboardEvent('keypress', { key: char, bubbles: true }));
+      element.dispatchEvent(new KeyboardEvent('keyup', { key: char, bubbles: true }));
+      await sleep(30);
+    }
+    element.dispatchEvent(new Event('change', { bubbles: true }));
+    element.dispatchEvent(new Event('blur', { bubbles: true }));
+  };
+
+  let input = null;
+  
+  if (fieldType === 'cardNumber') {
+    input = document.querySelector('input[name="cardnumber"], input[autocomplete="cc-number"], input[data-elements-stable-field-name="cardNumber"]');
+  } else if (fieldType === 'expiry') {
+    input = document.querySelector('input[name="exp-date"], input[autocomplete="cc-exp"], input[data-elements-stable-field-name="cardExpiry"]');
+  } else if (fieldType === 'cvc') {
+    input = document.querySelector('input[name="cvc"], input[autocomplete="cc-csc"], input[data-elements-stable-field-name="cardCvc"]');
+  }
+
+  if (input) {
+    await simulateTyping(input, value);
+    console.log(`[Zarif Stripe] Filled ${fieldType} in iframe`);
+  }
+}
+
+// Auto-detect if we're in Stripe iframe and listen for fill commands
+if (isStripeIframe) {
+  console.log('[Zarif] Running inside Stripe iframe');
+}
 
