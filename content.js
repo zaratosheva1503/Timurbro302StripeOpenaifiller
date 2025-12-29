@@ -673,97 +673,137 @@ async function fillCardForm() {
       await fillGPayField(['pin code', 'pin', 'pincode', 'postal', 'zip', 'postcode'], randomData.zip, 'PIN Code');
       await sleep(300);
 
-      // Handle State dropdown
+      // Handle State dropdown - Google Pay uses CUSTOM dropdown, not native <select>
       await sleep(500);
+
+      const targetState = randomData.state || 'Maharashtra';
+      console.log('[Zarif] Google Pay: ===== STATE DROPDOWN HANDLING =====');
+      console.log('[Zarif] Google Pay: Target state:', targetState);
+
+      // First try native selects (likely won't find any)
       const allSelects = document.querySelectorAll('select');
-      console.log('[Zarif] Google Pay: Found', allSelects.length, 'dropdowns');
+      console.log('[Zarif] Google Pay: Found', allSelects.length, 'native select dropdowns');
 
-      for (const dropdown of allSelects) {
-        const options = dropdown.querySelectorAll('option');
+      let stateSelected = false;
 
-        // Check for Indian states
-        const indianStates = ['maharashtra', 'karnataka', 'delhi', 'tamil nadu', 'west bengal',
-          'uttarakhand', 'rajasthan', 'uttar pradesh', 'gujarat', 'kerala',
-          'andhra pradesh', 'telangana', 'madhya pradesh', 'punjab', 'haryana'];
+      // If no native selects, look for custom dropdown
+      if (allSelects.length === 0) {
+        console.log('[Zarif] Google Pay: No native selects, looking for custom dropdown...');
 
-        let isStateDropdown = false;
-        for (const opt of options) {
-          const text = opt.textContent.toLowerCase();
-          if (indianStates.some(state => text.includes(state))) {
-            isStateDropdown = true;
-            break;
+        // Find the State dropdown by looking for elements with "State" text
+        const allElements = document.querySelectorAll('div, span, label');
+
+        for (const el of allElements) {
+          const text = el.textContent.trim();
+
+          // Find element that says exactly "State" or contains Indian state names
+          if (text === 'State' || text === 'Uttarakhand' || text === 'Maharashtra' ||
+            text === 'Delhi' || text === 'Karnataka' || text === 'Tamil Nadu' ||
+            text === 'Uttar Pradesh' || text === 'West Bengal' || text === 'Gujarat') {
+
+            // Find the clickable parent dropdown container
+            const clickableParent = el.closest('[role="listbox"], [role="button"], [role="combobox"], [tabindex], [aria-haspopup]') ||
+              el.parentElement?.closest('[role="listbox"], [role="button"], [role="combobox"], [tabindex], [aria-haspopup]');
+
+            if (clickableParent) {
+              console.log('[Zarif] Google Pay: Found custom state dropdown, clicking to open...');
+              console.log('[Zarif] Current value:', el.textContent.trim());
+
+              // Click to open the dropdown
+              clickableParent.click();
+              await sleep(500);
+
+              // Now look for the option list that appeared
+              const optionElements = document.querySelectorAll('[role="option"], [role="menuitem"], [data-value], li');
+              console.log('[Zarif] Google Pay: Found', optionElements.length, 'potential options');
+
+              for (const option of optionElements) {
+                const optionText = option.textContent.trim();
+                if (optionText.toLowerCase() === targetState.toLowerCase()) {
+                  console.log('[Zarif] Google Pay: Found target state option, clicking:', optionText);
+                  option.click();
+                  stateSelected = true;
+                  await sleep(300);
+                  break;
+                }
+              }
+
+              if (stateSelected) break;
+            }
           }
         }
 
-        if (isStateDropdown) {
-          const targetState = randomData.state || 'Maharashtra';
-          console.log('[Zarif] Google Pay: Looking for state:', targetState);
+        // Alternative: Look for aria-label or data attributes
+        if (!stateSelected) {
+          console.log('[Zarif] Google Pay: Trying alternative method to find state dropdown...');
 
-          // Find exact match first, then partial match
-          let matchedOption = null;
-          let matchedIndex = -1;
+          // Look for any dropdown that might contain state names
+          const dropdownTriggers = document.querySelectorAll('[aria-expanded], [aria-haspopup="listbox"], [role="combobox"]');
+          console.log('[Zarif] Google Pay: Found', dropdownTriggers.length, 'dropdown triggers');
 
-          for (let i = 0; i < options.length; i++) {
-            const opt = options[i];
-            const optText = opt.textContent.trim();
-            // Exact match (case insensitive)
-            if (optText.toLowerCase() === targetState.toLowerCase()) {
-              matchedOption = opt;
-              matchedIndex = i;
-              console.log('[Zarif] Google Pay: Exact state match found:', optText, 'at index', i);
+          for (const trigger of dropdownTriggers) {
+            const displayedText = trigger.textContent.trim();
+            // Check if this dropdown currently shows a state name (meaning it's the state dropdown)
+            const indianStates = ['maharashtra', 'karnataka', 'delhi', 'tamil nadu', 'west bengal',
+              'uttarakhand', 'rajasthan', 'uttar pradesh', 'gujarat', 'kerala',
+              'andhra pradesh', 'telangana', 'madhya pradesh', 'punjab', 'haryana'];
+
+            if (indianStates.some(state => displayedText.toLowerCase().includes(state))) {
+              console.log('[Zarif] Google Pay: Found state dropdown showing:', displayedText);
+
+              // Click to open
+              trigger.click();
+              await sleep(500);
+
+              // Find and click the target option
+              const allOptions = document.querySelectorAll('[role="option"], [data-value], .option, li');
+              for (const opt of allOptions) {
+                if (opt.textContent.trim().toLowerCase() === targetState.toLowerCase()) {
+                  console.log('[Zarif] Google Pay: Clicking state option:', opt.textContent.trim());
+                  opt.click();
+                  stateSelected = true;
+                  await sleep(300);
+                  break;
+                }
+              }
+
+              if (stateSelected) break;
+            }
+          }
+        }
+      } else {
+        // Native select found
+        for (const dropdown of allSelects) {
+          const options = dropdown.querySelectorAll('option');
+          const indianStates = ['maharashtra', 'karnataka', 'delhi', 'tamil nadu', 'west bengal',
+            'uttarakhand', 'rajasthan', 'uttar pradesh', 'gujarat', 'kerala'];
+
+          let isStateDropdown = false;
+          for (const opt of options) {
+            if (indianStates.some(state => opt.textContent.toLowerCase().includes(state))) {
+              isStateDropdown = true;
               break;
             }
           }
 
-          // If no exact match, try partial but prioritize starts-with
-          if (!matchedOption) {
-            for (let i = 0; i < options.length; i++) {
-              const opt = options[i];
-              const optText = opt.textContent.trim().toLowerCase();
-              if (optText.startsWith(targetState.toLowerCase())) {
-                matchedOption = opt;
-                matchedIndex = i;
-                console.log('[Zarif] Google Pay: Partial state match found:', opt.textContent.trim(), 'at index', i);
+          if (isStateDropdown) {
+            for (const opt of options) {
+              if (opt.textContent.trim().toLowerCase() === targetState.toLowerCase()) {
+                dropdown.value = opt.value;
+                dropdown.dispatchEvent(new Event('change', { bubbles: true }));
+                stateSelected = true;
+                console.log('✅ Google Pay: Native select state changed to:', targetState);
                 break;
               }
             }
           }
-
-          if (matchedOption) {
-            console.log('[Zarif] Attempting to select state with value:', matchedOption.value);
-
-            // Focus on dropdown first
-            dropdown.focus();
-            await sleep(100);
-
-            // Dispatch mousedown to simulate clicking
-            dropdown.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
-            await sleep(50);
-
-            // Set the selected index
-            dropdown.selectedIndex = matchedIndex;
-
-            // Also set value directly
-            dropdown.value = matchedOption.value;
-
-            // Mark the option as selected
-            matchedOption.selected = true;
-
-            // Dispatch all possible events
-            dropdown.dispatchEvent(new Event('input', { bubbles: true }));
-            dropdown.dispatchEvent(new Event('change', { bubbles: true }));
-            dropdown.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
-            dropdown.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-
-            // Blur to finalize
-            await sleep(100);
-            dropdown.dispatchEvent(new Event('blur', { bubbles: true }));
-
-            console.log('✅ Google Pay: State selected:', matchedOption.textContent.trim(), 'selectedIndex:', dropdown.selectedIndex);
-          } else {
-            console.log('[Zarif] Google Pay: State NOT found in dropdown:', targetState);
-          }
         }
+      }
+
+      if (stateSelected) {
+        console.log('✅ Google Pay: State selection SUCCESSFUL');
+      } else {
+        console.log('[Zarif] Google Pay: WARNING - Could not change state. Manual selection required.');
       }
 
       console.log('✅ Google Pay: Address filling completed');
