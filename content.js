@@ -583,30 +583,57 @@ async function fillCardForm() {
     if (isGooglePay) {
       console.log('✅ Google Pay detected, filling specific fields...');
       
-      // Street address
-      const streetInput = findInputByPlaceholder('Street address');
-      if (streetInput && !streetInput.value) {
-        await simulateTyping(streetInput, randomData.address);
-        await sleep(200);
-      }
+      // Wait a bit for modal fields to render
+      await sleep(500);
       
-      // Town/City
-      const cityInput = findInputByPlaceholder('Town/City');
-      if (cityInput && !cityInput.value) {
-        await simulateTyping(cityInput, randomData.city);
-        await sleep(200);
-      }
+      // Get all inputs again (modal might have added new ones)
+      const gpayInputs = document.querySelectorAll('input');
+      console.log('[Zarif] Found', gpayInputs.length, 'inputs on Google Pay');
       
-      // PIN code
-      const pinInput = findInputByPlaceholder('PIN code');
-      if (pinInput && !pinInput.value) {
-        await simulateTyping(pinInput, randomData.zip);
-        await sleep(200);
+      for (const input of gpayInputs) {
+        const placeholder = (input.getAttribute('placeholder') || '').toLowerCase();
+        const ariaLabel = (input.getAttribute('aria-label') || '').toLowerCase();
+        const id = (input.getAttribute('id') || '').toLowerCase();
+        const name = (input.getAttribute('name') || '').toLowerCase();
+        
+        console.log('[Zarif] Checking input:', placeholder, ariaLabel, id);
+        
+        // Skip already filled or card-related
+        if (input.value || placeholder.includes('card') || placeholder.includes('cvv') || 
+            placeholder.includes('mm/yy') || placeholder.includes('cardholder')) {
+          continue;
+        }
+        
+        // Street address
+        if (placeholder.includes('street') || ariaLabel.includes('street') || 
+            placeholder === 'street address' || name.includes('address1') || name.includes('street')) {
+          console.log('✅ Google Pay: Filling street address');
+          await simulateTyping(input, randomData.address);
+          await sleep(200);
+        }
+        // Town/City
+        else if (placeholder.includes('town') || placeholder.includes('city') || 
+                 ariaLabel.includes('town') || ariaLabel.includes('city') ||
+                 name.includes('city') || name.includes('town')) {
+          console.log('✅ Google Pay: Filling town/city');
+          await simulateTyping(input, randomData.city);
+          await sleep(200);
+        }
+        // PIN code / Postal code
+        else if (placeholder.includes('pin') || placeholder.includes('postal') || placeholder.includes('zip') ||
+                 ariaLabel.includes('pin') || ariaLabel.includes('postal') || ariaLabel.includes('zip') ||
+                 name.includes('pin') || name.includes('postal') || name.includes('zip')) {
+          console.log('✅ Google Pay: Filling PIN/postal code');
+          await simulateTyping(input, randomData.zip);
+          await sleep(200);
+        }
       }
       
       // Handle State dropdown for Google Pay
       await sleep(300);
       const stateDropdowns = document.querySelectorAll('select');
+      console.log('[Zarif] Found', stateDropdowns.length, 'dropdowns');
+      
       for (const dropdown of stateDropdowns) {
         // Check if this looks like a state dropdown (not country)
         const options = dropdown.querySelectorAll('option');
@@ -616,7 +643,8 @@ async function fillCardForm() {
           const text = opt.textContent.toLowerCase();
           if (text.includes('maharashtra') || text.includes('karnataka') || text.includes('delhi') || 
               text.includes('tamil') || text.includes('gujarat') || text.includes('uttarakhand') ||
-              text.includes('seoul') || text.includes('gyeonggi')) {
+              text.includes('seoul') || text.includes('gyeonggi') || text.includes('west bengal') ||
+              text.includes('rajasthan') || text.includes('uttar pradesh')) {
             isStateDropdown = true;
             break;
           }
@@ -634,6 +662,10 @@ async function fillCardForm() {
           }
         }
       }
+      
+      // Also try clicking on Material Design style inputs (they might have different structure)
+      const materialInputs = document.querySelectorAll('[class*="input"], [class*="field"], [role="textbox"]');
+      console.log('[Zarif] Found', materialInputs.length, 'material-style inputs');
     }
 
     showNotification('✅ All details filled successfully!', 'success');
