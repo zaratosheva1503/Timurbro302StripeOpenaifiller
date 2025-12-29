@@ -29,10 +29,10 @@ function sleep(ms) {
 // Try to fill Stripe Elements iframes
 async function tryFillStripeIframes(card) {
   console.log('[Zarif] Attempting to fill Stripe iframes...');
-  
+
   // Find all Stripe iframes
   const iframes = document.querySelectorAll('iframe[src*="stripe"], iframe[name*="__privateStripeFrame"], iframe[title*="Secure"]');
-  
+
   if (iframes.length === 0) {
     console.log('[Zarif] No Stripe iframes found');
     return false;
@@ -52,7 +52,7 @@ async function tryFillStripeIframes(card) {
           const name = (input.name || '').toLowerCase();
           const placeholder = (input.placeholder || '').toLowerCase();
           const autocomplete = (input.autocomplete || '').toLowerCase();
-          
+
           if (name.includes('cardnumber') || autocomplete.includes('cc-number') || placeholder.includes('card')) {
             await fillInputInIframe(input, card.card_number);
           } else if (name.includes('exp') || autocomplete.includes('cc-exp') || placeholder.includes('mm')) {
@@ -219,12 +219,12 @@ async function fillCardForm() {
     ];
 
     let cardNumberInput = findInput(cardNumberSelectors);
-    
+
     // Fallback: find by label text for ChatGPT checkout
     if (!cardNumberInput && isChatGPTCheckout) {
       cardNumberInput = findInputByLabel('Card number') || findInputByPlaceholder('card');
     }
-    
+
     // Fallback for Google Pay
     if (!cardNumberInput && isGooglePay) {
       cardNumberInput = findInputByLabel('Card number') || findInputByPlaceholder('Card number');
@@ -275,12 +275,12 @@ async function fillCardForm() {
     ];
 
     let expiryInput = findInput(expirySelectors);
-    
+
     // Fallback for ChatGPT checkout
     if (!expiryInput && isChatGPTCheckout) {
       expiryInput = findInputByLabel('Expiration') || findInputByPlaceholder('expir');
     }
-    
+
     // Fallback for Google Pay
     if (!expiryInput && isGooglePay) {
       expiryInput = findInputByPlaceholder('MM/YY') || findInputByLabel('MM/YY');
@@ -337,12 +337,12 @@ async function fillCardForm() {
     ];
 
     let cvcInput = findInput(cvcSelectors);
-    
+
     // Fallback for ChatGPT checkout
     if (!cvcInput && isChatGPTCheckout) {
       cvcInput = findInputByLabel('Security') || findInputByLabel('CVC') || findInputByLabel('CVV');
     }
-    
+
     // Fallback for Google Pay
     if (!cvcInput && isGooglePay) {
       cvcInput = findInputByPlaceholder('CVV') || findInputByLabel('CVV');
@@ -373,12 +373,12 @@ async function fillCardForm() {
     ];
 
     let nameInput = findInput(nameSelectors);
-    
+
     // Fallback for ChatGPT checkout
     if (!nameInput && isChatGPTCheckout) {
       nameInput = findInputByLabel('Full name') || findInputByLabel('Name');
     }
-    
+
     // Fallback for Google Pay
     if (!nameInput && isGooglePay) {
       nameInput = findInputByPlaceholder('Cardholder name') || findInputByLabel('Cardholder');
@@ -578,94 +578,119 @@ async function fillCardForm() {
         }
       }
     }
-    
+
     // Google Pay specific: fill fields by exact placeholder match
     if (isGooglePay) {
-      console.log('✅ Google Pay detected, filling specific fields...');
-      
-      // Wait a bit for modal fields to render
-      await sleep(500);
-      
-      // Get all inputs again (modal might have added new ones)
-      const gpayInputs = document.querySelectorAll('input');
-      console.log('[Zarif] Found', gpayInputs.length, 'inputs on Google Pay');
-      
-      for (const input of gpayInputs) {
-        const placeholder = (input.getAttribute('placeholder') || '').toLowerCase();
-        const ariaLabel = (input.getAttribute('aria-label') || '').toLowerCase();
-        const id = (input.getAttribute('id') || '').toLowerCase();
-        const name = (input.getAttribute('name') || '').toLowerCase();
-        
-        console.log('[Zarif] Checking input:', placeholder, ariaLabel, id);
-        
-        // Skip already filled or card-related
-        if (input.value || placeholder.includes('card') || placeholder.includes('cvv') || 
-            placeholder.includes('mm/yy') || placeholder.includes('cardholder')) {
-          continue;
+      console.log('✅ Google Pay detected, filling address fields...');
+
+      // Wait longer for modal/form fields to fully render
+      await sleep(1000);
+
+      // Helper to fill Google Pay input by finding based on various attributes
+      const fillGPayInput = async (searchTerms, value, fieldName) => {
+        const allInputs = document.querySelectorAll('input:not([type="hidden"])');
+        for (const input of allInputs) {
+          const placeholder = (input.getAttribute('placeholder') || '');
+          const ariaLabel = (input.getAttribute('aria-label') || '');
+          const name = (input.getAttribute('name') || '');
+          const id = (input.getAttribute('id') || '');
+          const combined = (placeholder + ariaLabel + name + id).toLowerCase();
+
+          // Check if any search term matches
+          for (const term of searchTerms) {
+            if (combined.includes(term.toLowerCase())) {
+              // Skip if already has a value
+              if (input.value && input.value.length > 0) {
+                console.log(`[Zarif] ${fieldName} already filled, skipping`);
+                return true;
+              }
+              console.log(`✅ Google Pay: Filling ${fieldName}`);
+              await simulateTyping(input, value);
+              await sleep(300);
+              return true;
+            }
+          }
         }
-        
-        // Street address
-        if (placeholder.includes('street') || ariaLabel.includes('street') || 
-            placeholder === 'street address' || name.includes('address1') || name.includes('street')) {
-          console.log('✅ Google Pay: Filling street address');
-          await simulateTyping(input, randomData.address);
-          await sleep(200);
-        }
-        // Town/City
-        else if (placeholder.includes('town') || placeholder.includes('city') || 
-                 ariaLabel.includes('town') || ariaLabel.includes('city') ||
-                 name.includes('city') || name.includes('town')) {
-          console.log('✅ Google Pay: Filling town/city');
-          await simulateTyping(input, randomData.city);
-          await sleep(200);
-        }
-        // PIN code / Postal code
-        else if (placeholder.includes('pin') || placeholder.includes('postal') || placeholder.includes('zip') ||
-                 ariaLabel.includes('pin') || ariaLabel.includes('postal') || ariaLabel.includes('zip') ||
-                 name.includes('pin') || name.includes('postal') || name.includes('zip')) {
-          console.log('✅ Google Pay: Filling PIN/postal code');
-          await simulateTyping(input, randomData.zip);
-          await sleep(200);
-        }
+        return false;
+      };
+
+      // Fill Street Address (exact match from Google Pay form: "Street address")
+      await fillGPayInput(['street address', 'street', 'address1', 'addressline1', 'line1'], randomData.address, 'Street Address');
+      await sleep(200);
+
+      // Fill Apt/Suite (optional field - "Apt, suite, etc. (optional)")
+      if (randomData.address2) {
+        await fillGPayInput(['apt', 'suite', 'address2', 'addressline2', 'line2', 'unit'], randomData.address2, 'Apt/Suite');
+        await sleep(200);
       }
-      
+
+      // Fill Town/City (exact match: "Town/City")
+      await fillGPayInput(['town/city', 'town', 'city', 'locality'], randomData.city, 'Town/City');
+      await sleep(200);
+
+      // Fill PIN code (exact match: "PIN code")
+      await fillGPayInput(['pin code', 'pin', 'pincode', 'postal', 'zip', 'postcode'], randomData.zip, 'PIN Code');
+      await sleep(200);
+
       // Handle State dropdown for Google Pay
-      await sleep(300);
-      const stateDropdowns = document.querySelectorAll('select');
-      console.log('[Zarif] Found', stateDropdowns.length, 'dropdowns');
-      
-      for (const dropdown of stateDropdowns) {
-        // Check if this looks like a state dropdown (not country)
+      await sleep(500);
+      const allSelects = document.querySelectorAll('select');
+      console.log('[Zarif] Google Pay: Found', allSelects.length, 'dropdowns');
+
+      for (const dropdown of allSelects) {
+        // Skip if this is a country dropdown
+        const dropdownName = (dropdown.getAttribute('name') || '').toLowerCase();
+        const dropdownId = (dropdown.getAttribute('id') || '').toLowerCase();
+        const dropdownLabel = (dropdown.getAttribute('aria-label') || '').toLowerCase();
+        const combined = dropdownName + dropdownId + dropdownLabel;
+
+        if (combined.includes('country') || combined.includes('region')) {
+          // Check if options suggest it's actually a country dropdown
+          const firstFewOptions = Array.from(dropdown.querySelectorAll('option')).slice(0, 10);
+          const hasCountryValues = firstFewOptions.some(opt =>
+            opt.value === 'IN' || opt.value === 'US' || opt.value === 'KR' ||
+            opt.textContent.includes('India') || opt.textContent.includes('United States')
+          );
+          if (hasCountryValues) continue;
+        }
+
+        // Check if this looks like a state dropdown
         const options = dropdown.querySelectorAll('option');
         let isStateDropdown = false;
-        
+
+        // Check for Indian states
+        const indianStates = ['maharashtra', 'karnataka', 'delhi', 'tamil nadu', 'west bengal',
+          'uttarakhand', 'rajasthan', 'uttar pradesh', 'gujarat', 'kerala',
+          'andhra pradesh', 'telangana', 'madhya pradesh', 'punjab', 'haryana'];
+        // Check for Korean provinces
+        const koreanProvinces = ['seoul', 'gyeonggi', 'busan', 'incheon', 'daegu', 'daejeon'];
+
         for (const opt of options) {
           const text = opt.textContent.toLowerCase();
-          if (text.includes('maharashtra') || text.includes('karnataka') || text.includes('delhi') || 
-              text.includes('tamil') || text.includes('gujarat') || text.includes('uttarakhand') ||
-              text.includes('seoul') || text.includes('gyeonggi') || text.includes('west bengal') ||
-              text.includes('rajasthan') || text.includes('uttar pradesh')) {
+          if (indianStates.some(state => text.includes(state)) ||
+            koreanProvinces.some(prov => text.includes(prov))) {
             isStateDropdown = true;
             break;
           }
         }
-        
+
         if (isStateDropdown) {
           const targetState = randomData.state || 'Maharashtra';
+          console.log('[Zarif] Google Pay: Looking for state:', targetState);
+
           for (const opt of options) {
             if (opt.textContent.includes(targetState) || opt.value.includes(targetState)) {
               console.log('✅ Google Pay: Selecting state:', targetState);
               dropdown.value = opt.value;
               dropdown.dispatchEvent(new Event('change', { bubbles: true }));
+              dropdown.dispatchEvent(new Event('input', { bubbles: true }));
               break;
             }
           }
         }
       }
-      
-      // Also try clicking on Material Design style inputs (they might have different structure)
-      const materialInputs = document.querySelectorAll('[class*="input"], [class*="field"], [role="textbox"]');
-      console.log('[Zarif] Found', materialInputs.length, 'material-style inputs');
+
+      console.log('✅ Google Pay: Address filling completed');
     }
 
     showNotification('✅ All details filled successfully!', 'success');
@@ -959,7 +984,7 @@ async function fillStripeIframeInput(fieldType, value) {
   };
 
   let input = null;
-  
+
   if (fieldType === 'cardNumber') {
     input = document.querySelector('input[name="cardnumber"], input[autocomplete="cc-number"], input[data-elements-stable-field-name="cardNumber"]');
   } else if (fieldType === 'expiry') {
