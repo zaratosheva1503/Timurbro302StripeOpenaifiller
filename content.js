@@ -697,16 +697,40 @@ async function fillCardForm() {
 
         if (isStateDropdown) {
           const targetState = randomData.state || 'Maharashtra';
-          console.log('[Zarif] Google Pay: Selecting state:', targetState);
+          console.log('[Zarif] Google Pay: Looking for state:', targetState);
+
+          // Find exact match first, then partial match
+          let matchedOption = null;
 
           for (const opt of options) {
-            if (opt.textContent.includes(targetState) || opt.value.includes(targetState)) {
-              dropdown.value = opt.value;
-              dropdown.dispatchEvent(new Event('change', { bubbles: true }));
-              dropdown.dispatchEvent(new Event('input', { bubbles: true }));
-              console.log('✅ Google Pay: State selected:', targetState);
+            const optText = opt.textContent.trim();
+            // Exact match (case insensitive)
+            if (optText.toLowerCase() === targetState.toLowerCase()) {
+              matchedOption = opt;
+              console.log('[Zarif] Google Pay: Exact state match found:', optText);
               break;
             }
+          }
+
+          // If no exact match, try partial but prioritize starts-with
+          if (!matchedOption) {
+            for (const opt of options) {
+              const optText = opt.textContent.trim().toLowerCase();
+              if (optText.startsWith(targetState.toLowerCase())) {
+                matchedOption = opt;
+                console.log('[Zarif] Google Pay: Partial state match found:', opt.textContent.trim());
+                break;
+              }
+            }
+          }
+
+          if (matchedOption) {
+            dropdown.value = matchedOption.value;
+            dropdown.dispatchEvent(new Event('change', { bubbles: true }));
+            dropdown.dispatchEvent(new Event('input', { bubbles: true }));
+            console.log('✅ Google Pay: State selected:', matchedOption.textContent.trim());
+          } else {
+            console.log('[Zarif] Google Pay: State NOT found in dropdown:', targetState);
           }
         }
       }
