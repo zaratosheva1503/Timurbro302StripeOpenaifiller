@@ -194,6 +194,7 @@ async function fillCardForm() {
     // Check if we're on a Stripe checkout page with iframes
     const isStripeCheckout = window.location.hostname.includes('checkout.stripe.com');
     const isChatGPTCheckout = window.location.hostname.includes('chatgpt.com');
+    const isGooglePay = window.location.hostname.includes('payments.google.com') || window.location.hostname.includes('pay.google.com');
 
     // For Stripe checkout, look for the specific input patterns they use
     const cardNumberSelectors = [
@@ -211,7 +212,10 @@ async function fillCardForm() {
       // ChatGPT checkout specific
       'input[placeholder="Card number"]',
       'input[id*="cardNumber"]',
-      'input[data-testid*="card-number"]'
+      'input[data-testid*="card-number"]',
+      // Google Pay specific
+      'input[aria-label="Card number"]',
+      'input[placeholder="Card number"]'
     ];
 
     let cardNumberInput = findInput(cardNumberSelectors);
@@ -219,6 +223,11 @@ async function fillCardForm() {
     // Fallback: find by label text for ChatGPT checkout
     if (!cardNumberInput && isChatGPTCheckout) {
       cardNumberInput = findInputByLabel('Card number') || findInputByPlaceholder('card');
+    }
+    
+    // Fallback for Google Pay
+    if (!cardNumberInput && isGooglePay) {
+      cardNumberInput = findInputByLabel('Card number') || findInputByPlaceholder('Card number');
     }
 
     // Try to fill Stripe iframes if on ChatGPT checkout
@@ -259,7 +268,10 @@ async function fillCardForm() {
       // ChatGPT checkout specific
       'input[placeholder="Expiration date"]',
       'input[id*="expir"]',
-      'input[data-testid*="expir"]'
+      'input[data-testid*="expir"]',
+      // Google Pay specific
+      'input[placeholder="MM/YY"]',
+      'input[aria-label*="MM/YY"]'
     ];
 
     let expiryInput = findInput(expirySelectors);
@@ -267,6 +279,11 @@ async function fillCardForm() {
     // Fallback for ChatGPT checkout
     if (!expiryInput && isChatGPTCheckout) {
       expiryInput = findInputByLabel('Expiration') || findInputByPlaceholder('expir');
+    }
+    
+    // Fallback for Google Pay
+    if (!expiryInput && isGooglePay) {
+      expiryInput = findInputByPlaceholder('MM/YY') || findInputByLabel('MM/YY');
     }
 
     if (expiryInput) {
@@ -313,7 +330,10 @@ async function fillCardForm() {
       'input[placeholder="Security code"]',
       'input[id*="cvc"]',
       'input[id*="cvv"]',
-      'input[data-testid*="security"]'
+      'input[data-testid*="security"]',
+      // Google Pay specific
+      'input[placeholder="CVV"]',
+      'input[aria-label="CVV"]'
     ];
 
     let cvcInput = findInput(cvcSelectors);
@@ -321,6 +341,11 @@ async function fillCardForm() {
     // Fallback for ChatGPT checkout
     if (!cvcInput && isChatGPTCheckout) {
       cvcInput = findInputByLabel('Security') || findInputByLabel('CVC') || findInputByLabel('CVV');
+    }
+    
+    // Fallback for Google Pay
+    if (!cvcInput && isGooglePay) {
+      cvcInput = findInputByPlaceholder('CVV') || findInputByLabel('CVV');
     }
 
     if (cvcInput) {
@@ -341,7 +366,10 @@ async function fillCardForm() {
       // ChatGPT checkout specific
       'input[placeholder="Full name"]',
       'input[id*="fullName"]',
-      'input[data-testid*="name"]'
+      'input[data-testid*="name"]',
+      // Google Pay specific
+      'input[placeholder="Cardholder name"]',
+      'input[aria-label="Cardholder name"]'
     ];
 
     let nameInput = findInput(nameSelectors);
@@ -349,6 +377,11 @@ async function fillCardForm() {
     // Fallback for ChatGPT checkout
     if (!nameInput && isChatGPTCheckout) {
       nameInput = findInputByLabel('Full name') || findInputByLabel('Name');
+    }
+    
+    // Fallback for Google Pay
+    if (!nameInput && isGooglePay) {
+      nameInput = findInputByPlaceholder('Cardholder name') || findInputByLabel('Cardholder');
     }
 
     if (nameInput) {
