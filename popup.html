@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Zarif Card Automation</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="icon" type="image/png" href="images/zarif card auto logo.png">
+</head>
+
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="logo-container">
+        <img src="images/zarif card auto logo.png" alt="Zarif Card Automation Logo" class="logo-icon">
+        <div>
+          <h2>Zarif Card Automation</h2>
+          <div class="version">v6.0.6</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab Navigation -->
+    <div class="tab-navigation">
+      <button class="tab-btn active" data-tab="generate">Generate Now</button>
+      <button class="tab-btn" data-tab="precards">Pre-Cards</button>
+    </div>
+
+    <!-- Tab Content: Generate Now -->
+    <div class="content tab-content active" id="generateTab">
+      <div class="input-group">
+        <label for="bin">Enter BIN:</label>
+        <input type="text" id="bin" placeholder="552461" maxlength="16">
+      </div>
+
+      <div class="input-group">
+        <label for="generateMethod">Generation Method:</label>
+        <select id="generateMethod" class="method-select">
+          <option value="api">API Generator (Online)</option>
+        </select>
+      </div>
+
+      <div class="input-group">
+        <label for="countrySelect">Billing Country:</label>
+        <select id="countrySelect" class="method-select">
+          <option value="KR">🇰🇷 South Korea</option>
+          <option value="IN" selected>🇮🇳 India (Default)</option>
+        </select>
+      </div>
+
+      <div class="input-group">
+        <label>Custom Expiry (Optional):</label>
+        <div class="expiry-row">
+          <select id="expiryMonth" class="expiry-select">
+            <option value="">Month</option>
+            <option value="01">01</option>
+            <option value="02">02</option>
+            <option value="03" selected>03</option>
+            <option value="04">04</option>
+            <option value="05">05</option>
+            <option value="06">06</option>
+            <option value="07">07</option>
+            <option value="08">08</option>
+            <option value="09">09</option>
+            <option value="10">10</option>
+            <option value="11">11</option>
+            <option value="12">12</option>
+          </select>
+          <span class="expiry-separator">/</span>
+          <select id="expiryYear" class="expiry-select">
+            <option value="">Year</option>
+            <option value="2025">2025</option>
+            <option value="2026">2026</option>
+            <option value="2027">2027</option>
+            <option value="2028">2028</option>
+            <option value="2029" selected>2029</option>
+            <option value="2030">2030</option>
+            <option value="2031">2031</option>
+            <option value="2032">2032</option>
+          </select>
+        </div>
+        <small class="expiry-hint">Default: 03/2029 if not changed</small>
+      </div>
+
+      <div class="status" id="status">
+        <p>Enter BIN and visit Stripe checkout page</p>
+      </div>
+
+      <button id="generateBtn" class="btn btn-primary">
+        Generate & Auto Fill
+      </button>
+
+      <button id="clearBtn" class="btn btn-secondary">
+        Clear Saved BIN
+      </button>
+
+      <div class="info vpn-warning">
+        <h4>⚠️ How to Use:</h4>
+        <ol>
+          <li><strong>Connect to South Korea VPN</strong></li>
+          <li>Use any VPN: <strong>NordVPN, ProtonVPN, CyberGhost, Urban VPN</strong>, etc.</li>
+          <li>Go to <strong>OpenAI Payment Page</strong> or Stripe checkout</li>
+          <li>Click the extension icon</li>
+          <li>Click <strong>"Generate & Auto Fill"</strong></li>
+          <li>Card details will be filled automatically!</li>
+        </ol>
+      </div>
+
+      <div class="info critical-warning">
+        <h4>🔴 Important:</h4>
+        <p><strong>VPN must be connected to South Korea before opening the payment page.</strong></p>
+        <p>Works on: pay.openai.com & checkout.stripe.com</p>
+      </div>
+
+      <div class="saved-bin" id="savedBin" style="display: none;">
+        <p><strong>Saved BIN:</strong> <span id="savedBinValue"></span></p>
+      </div>
+
+      <div class="footer-section">
+        <a href="https://t.me/+OQbKMc_h0T9kOGI1" target="_blank" class="telegram-link">
+          <svg viewBox="0 0 24 24" fill="currentColor" class="telegram-icon">
+            <path
+              d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.562 8.161l-1.84 8.673c-.138.633-.5.784-1.013.488l-2.804-2.066-1.351 1.3c-.15.15-.275.275-.563.275l.2-2.85 5.175-4.675c.225-.2-.05-.313-.35-.113l-6.388 4.025-2.75-.863c-.6-.187-.612-.6.125-.887l10.738-4.138c.5-.187.937.113.775.888z" />
+          </svg>
+          <span>Zarif Card Automation Support</span>
+        </a>
+      </div>
+    </div>
+
+    <!-- Tab Content: Pre-Cards -->
+    <div class="content tab-content" id="precardsTab">
+      <div class="input-group">
+        <label for="precardBin">Enter BIN for Pre-Cards:</label>
+        <input type="text" id="precardBin" placeholder="552461" maxlength="16">
+      </div>
+
+      <div class="input-group">
+        <label for="precardMethod">Generation Method:</label>
+        <select id="precardMethod" class="method-select">
+          <option value="api">API Generator (Online)</option>
+        </select>
+      </div>
+
+      <div class="input-group">
+        <label for="precardCountrySelect">Billing Country:</label>
+        <select id="precardCountrySelect" class="method-select">
+          <option value="KR">🇰🇷 South Korea</option>
+          <option value="IN" selected>🇮🇳 India (Default)</option>
+        </select>
+      </div>
+
+      <div class="status" id="precardStatus">
+        <p>Generate pre-cards to save for later use</p>
+      </div>
+
+      <button id="generatePrecardsBtn" class="btn btn-primary">
+        Generate 10 Pre-Cards
+      </button>
+
+      <button id="clearPrecardsBtn" class="btn btn-secondary">
+        Clear All Pre-Cards
+      </button>
+
+      <div class="precards-container" id="precardsContainer">
+        <h3 class="precards-title">Saved Pre-Cards</h3>
+        <div id="precardsList" class="precards-list">
+          <p class="no-cards-message">No pre-cards generated yet</p>
+        </div>
+      </div>
+
+      <div class="info">
+        <h4>📋 How to Use Pre-Cards:</h4>
+        <ol>
+          <li>Enter BIN and click "Generate 10 Pre-Cards"</li>
+          <li>Cards will be saved to local storage</li>
+          <li>Open any Stripe checkout page</li>
+          <li>Click "Use" button next to any card</li>
+          <li>Card details will auto-fill instantly!</li>
+          <li>Regenerate cards anytime with new BIN</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+
+</html>
