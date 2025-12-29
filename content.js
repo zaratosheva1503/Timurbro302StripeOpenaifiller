@@ -583,92 +583,113 @@ async function fillCardForm() {
     if (isGooglePay) {
       console.log('✅ Google Pay detected, filling address fields...');
 
-      // Wait longer for modal/form fields to fully render
-      await sleep(1000);
+      // Wait longer for modal/form fields to fully render after country selection
+      await sleep(1500);
 
-      // Helper to fill Google Pay input by finding based on various attributes
-      const fillGPayInput = async (searchTerms, value, fieldName) => {
+      // Log all visible inputs for debugging
+      const debugInputs = document.querySelectorAll('input:not([type="hidden"])');
+      console.log('[Zarif] Google Pay: Total visible inputs found:', debugInputs.length);
+      debugInputs.forEach((input, idx) => {
+        const placeholder = input.getAttribute('placeholder') || '';
+        const name = input.getAttribute('name') || '';
+        const id = input.getAttribute('id') || '';
+        const value = input.value || '';
+        const parent = input.closest('div')?.textContent?.slice(0, 50) || '';
+        console.log(`[Zarif] Input ${idx}: placeholder="${placeholder}" name="${name}" id="${id}" value="${value}" parent="${parent}"`);
+      });
+
+      // Helper to fill Google Pay input using multiple detection methods
+      const fillGPayField = async (searchPatterns, value, fieldName) => {
         const allInputs = document.querySelectorAll('input:not([type="hidden"])');
-        for (const input of allInputs) {
-          const placeholder = (input.getAttribute('placeholder') || '');
-          const ariaLabel = (input.getAttribute('aria-label') || '');
-          const name = (input.getAttribute('name') || '');
-          const id = (input.getAttribute('id') || '');
-          const combined = (placeholder + ariaLabel + name + id).toLowerCase();
 
-          // Check if any search term matches
-          for (const term of searchTerms) {
-            if (combined.includes(term.toLowerCase())) {
-              // Skip if already has a value
-              if (input.value && input.value.length > 0) {
-                console.log(`[Zarif] ${fieldName} already filled, skipping`);
-                return true;
+        for (const input of allInputs) {
+          // Skip if already filled
+          if (input.value && input.value.length > 0) continue;
+
+          const placeholder = (input.getAttribute('placeholder') || '').toLowerCase();
+          const name = (input.getAttribute('name') || '').toLowerCase();
+          const id = (input.getAttribute('id') || '').toLowerCase();
+          const ariaLabel = (input.getAttribute('aria-label') || '').toLowerCase();
+
+          // Also check parent container text (for Material Design labels)
+          const parentDiv = input.closest('div');
+          const parentText = parentDiv ? (parentDiv.textContent || '').toLowerCase() : '';
+
+          // Check previous sibling or label
+          const prevSibling = input.previousElementSibling;
+          const siblingText = prevSibling ? (prevSibling.textContent || '').toLowerCase() : '';
+
+          // Combine all searchable text
+          const allText = placeholder + ' ' + name + ' ' + id + ' ' + ariaLabel + ' ' + parentText + ' ' + siblingText;
+
+          // Check each pattern
+          for (const pattern of searchPatterns) {
+            if (allText.includes(pattern.toLowerCase())) {
+              console.log(`✅ Google Pay: Found ${fieldName} field, filling with "${value}"`);
+
+              // Focus and clear
+              input.focus();
+              input.value = '';
+
+              // Type character by character with events
+              for (const char of value) {
+                input.value += char;
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                input.dispatchEvent(new KeyboardEvent('keydown', { key: char, bubbles: true }));
+                input.dispatchEvent(new KeyboardEvent('keypress', { key: char, bubbles: true }));
+                input.dispatchEvent(new KeyboardEvent('keyup', { key: char, bubbles: true }));
+                await sleep(30);
               }
-              console.log(`✅ Google Pay: Filling ${fieldName}`);
-              await simulateTyping(input, value);
+
+              // Trigger change and blur
+              input.dispatchEvent(new Event('change', { bubbles: true }));
+              input.dispatchEvent(new Event('blur', { bubbles: true }));
+
               await sleep(300);
               return true;
             }
           }
         }
+
+        console.log(`[Zarif] Google Pay: ${fieldName} field NOT found`);
         return false;
       };
 
-      // Fill Street Address (exact match from Google Pay form: "Street address")
-      await fillGPayInput(['street address', 'street', 'address1', 'addressline1', 'line1'], randomData.address, 'Street Address');
-      await sleep(200);
+      // Fill Street Address - search for "Street address" text anywhere
+      await fillGPayField(['street address', 'street', 'address line 1', 'address1', 'addressline1'], randomData.address, 'Street Address');
+      await sleep(300);
 
-      // Fill Apt/Suite (optional field - "Apt, suite, etc. (optional)")
+      // Fill Apt/Suite (optional)
       if (randomData.address2) {
-        await fillGPayInput(['apt', 'suite', 'address2', 'addressline2', 'line2', 'unit'], randomData.address2, 'Apt/Suite');
-        await sleep(200);
+        await fillGPayField(['apt', 'suite', 'unit', 'address line 2', 'address2'], randomData.address2, 'Apt/Suite');
+        await sleep(300);
       }
 
-      // Fill Town/City (exact match: "Town/City")
-      await fillGPayInput(['town/city', 'town', 'city', 'locality'], randomData.city, 'Town/City');
-      await sleep(200);
+      // Fill Town/City
+      await fillGPayField(['town/city', 'town', 'city', 'locality', 'town or city'], randomData.city, 'Town/City');
+      await sleep(300);
 
-      // Fill PIN code (exact match: "PIN code")
-      await fillGPayInput(['pin code', 'pin', 'pincode', 'postal', 'zip', 'postcode'], randomData.zip, 'PIN Code');
-      await sleep(200);
+      // Fill PIN code / Postal code
+      await fillGPayField(['pin code', 'pin', 'pincode', 'postal', 'zip', 'postcode'], randomData.zip, 'PIN Code');
+      await sleep(300);
 
-      // Handle State dropdown for Google Pay
+      // Handle State dropdown
       await sleep(500);
       const allSelects = document.querySelectorAll('select');
       console.log('[Zarif] Google Pay: Found', allSelects.length, 'dropdowns');
 
       for (const dropdown of allSelects) {
-        // Skip if this is a country dropdown
-        const dropdownName = (dropdown.getAttribute('name') || '').toLowerCase();
-        const dropdownId = (dropdown.getAttribute('id') || '').toLowerCase();
-        const dropdownLabel = (dropdown.getAttribute('aria-label') || '').toLowerCase();
-        const combined = dropdownName + dropdownId + dropdownLabel;
-
-        if (combined.includes('country') || combined.includes('region')) {
-          // Check if options suggest it's actually a country dropdown
-          const firstFewOptions = Array.from(dropdown.querySelectorAll('option')).slice(0, 10);
-          const hasCountryValues = firstFewOptions.some(opt =>
-            opt.value === 'IN' || opt.value === 'US' || opt.value === 'KR' ||
-            opt.textContent.includes('India') || opt.textContent.includes('United States')
-          );
-          if (hasCountryValues) continue;
-        }
-
-        // Check if this looks like a state dropdown
         const options = dropdown.querySelectorAll('option');
-        let isStateDropdown = false;
 
         // Check for Indian states
         const indianStates = ['maharashtra', 'karnataka', 'delhi', 'tamil nadu', 'west bengal',
           'uttarakhand', 'rajasthan', 'uttar pradesh', 'gujarat', 'kerala',
           'andhra pradesh', 'telangana', 'madhya pradesh', 'punjab', 'haryana'];
-        // Check for Korean provinces
-        const koreanProvinces = ['seoul', 'gyeonggi', 'busan', 'incheon', 'daegu', 'daejeon'];
 
+        let isStateDropdown = false;
         for (const opt of options) {
           const text = opt.textContent.toLowerCase();
-          if (indianStates.some(state => text.includes(state)) ||
-            koreanProvinces.some(prov => text.includes(prov))) {
+          if (indianStates.some(state => text.includes(state))) {
             isStateDropdown = true;
             break;
           }
@@ -676,14 +697,14 @@ async function fillCardForm() {
 
         if (isStateDropdown) {
           const targetState = randomData.state || 'Maharashtra';
-          console.log('[Zarif] Google Pay: Looking for state:', targetState);
+          console.log('[Zarif] Google Pay: Selecting state:', targetState);
 
           for (const opt of options) {
             if (opt.textContent.includes(targetState) || opt.value.includes(targetState)) {
-              console.log('✅ Google Pay: Selecting state:', targetState);
               dropdown.value = opt.value;
               dropdown.dispatchEvent(new Event('change', { bubbles: true }));
               dropdown.dispatchEvent(new Event('input', { bubbles: true }));
+              console.log('✅ Google Pay: State selected:', targetState);
               break;
             }
           }
