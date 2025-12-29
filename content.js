@@ -551,21 +551,21 @@ async function fillCardForm() {
       // Skip card-related fields and email
       if (combined.includes('card') || combined.includes('cvc') || combined.includes('cvv') ||
         combined.includes('email') || combined.includes('1234') || combined.includes('expir') ||
-        combined.includes('mm') || input.type === 'hidden') {
+        combined.includes('mm') || input.type === 'hidden' || combined.includes('cardholder')) {
         continue;
       }
 
-      if ((combined.includes('address') && !combined.includes('line 2') && !combined.includes('address2')) ||
+      if ((combined.includes('address') && !combined.includes('line 2') && !combined.includes('address2') && !combined.includes('apt')) ||
         combined.includes('street') || combined.includes('line1') || combined.includes('addressline1')) {
         console.log('✅ Filling address');
         await simulateTyping(input, randomData.address);
         await sleep(200);
       } else if (combined.includes('city') || combined.includes('town') || combined.includes('locality')) {
-        console.log('✅ Filling city');
+        console.log('✅ Filling city/town');
         await simulateTyping(input, randomData.city);
         await sleep(200);
-      } else if (combined.includes('zip') || combined.includes('postal')) {
-        console.log('✅ Filling postal code');
+      } else if (combined.includes('zip') || combined.includes('postal') || combined.includes('pin code') || combined.includes('pincode')) {
+        console.log('✅ Filling postal/PIN code');
         await simulateTyping(input, randomData.zip);
         await sleep(200);
       } else if (combined.includes('district') || (combined.includes('state') && !combined.includes('country')) ||
@@ -575,6 +575,63 @@ async function fillCardForm() {
           console.log('✅ Filling district/state');
           await simulateTyping(input, randomData.state);
           await sleep(200);
+        }
+      }
+    }
+    
+    // Google Pay specific: fill fields by exact placeholder match
+    if (isGooglePay) {
+      console.log('✅ Google Pay detected, filling specific fields...');
+      
+      // Street address
+      const streetInput = findInputByPlaceholder('Street address');
+      if (streetInput && !streetInput.value) {
+        await simulateTyping(streetInput, randomData.address);
+        await sleep(200);
+      }
+      
+      // Town/City
+      const cityInput = findInputByPlaceholder('Town/City');
+      if (cityInput && !cityInput.value) {
+        await simulateTyping(cityInput, randomData.city);
+        await sleep(200);
+      }
+      
+      // PIN code
+      const pinInput = findInputByPlaceholder('PIN code');
+      if (pinInput && !pinInput.value) {
+        await simulateTyping(pinInput, randomData.zip);
+        await sleep(200);
+      }
+      
+      // Handle State dropdown for Google Pay
+      await sleep(300);
+      const stateDropdowns = document.querySelectorAll('select');
+      for (const dropdown of stateDropdowns) {
+        // Check if this looks like a state dropdown (not country)
+        const options = dropdown.querySelectorAll('option');
+        let isStateDropdown = false;
+        
+        for (const opt of options) {
+          const text = opt.textContent.toLowerCase();
+          if (text.includes('maharashtra') || text.includes('karnataka') || text.includes('delhi') || 
+              text.includes('tamil') || text.includes('gujarat') || text.includes('uttarakhand') ||
+              text.includes('seoul') || text.includes('gyeonggi')) {
+            isStateDropdown = true;
+            break;
+          }
+        }
+        
+        if (isStateDropdown) {
+          const targetState = randomData.state || 'Maharashtra';
+          for (const opt of options) {
+            if (opt.textContent.includes(targetState) || opt.value.includes(targetState)) {
+              console.log('✅ Google Pay: Selecting state:', targetState);
+              dropdown.value = opt.value;
+              dropdown.dispatchEvent(new Event('change', { bubbles: true }));
+              break;
+            }
+          }
         }
       }
     }
