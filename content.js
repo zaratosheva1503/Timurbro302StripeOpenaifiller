@@ -977,26 +977,47 @@ async function fillCardFormWithPrecard(card, randomData) {
     const countrySelect = document.querySelector('select');
     if (countrySelect) {
       const options = countrySelect.querySelectorAll('option');
+      console.log('[Zarif Precard] Setting country to:', selectedCountry);
 
-      if (selectedCountry === 'IN') {
-        // Select India - be specific to avoid matching "British Indian Ocean Territory"
-        for (const opt of options) {
-          if (opt.value === 'IN') {
-            countrySelect.value = opt.value;
-            countrySelect.dispatchEvent(new Event('change', { bubbles: true }));
-            break;
-          }
-          if (opt.textContent.trim() === 'India') {
-            countrySelect.value = opt.value;
-            countrySelect.dispatchEvent(new Event('change', { bubbles: true }));
-            break;
-          }
+      let countryFound = false;
+      for (const opt of options) {
+        const optValue = opt.value.toUpperCase();
+        const optText = opt.textContent.trim().toLowerCase();
+
+        if (selectedCountry === 'IN' && (optValue === 'IN' || optText === 'india')) {
+          countrySelect.value = opt.value;
+          countrySelect.dispatchEvent(new Event('change', { bubbles: true }));
+          countryFound = true;
+          console.log('✅ Precard: Selected India');
+          break;
+        } else if (selectedCountry === 'GB' && (optValue === 'GB' || optValue === 'UK' || optText.includes('kingdom') || optText.includes('britain'))) {
+          countrySelect.value = opt.value;
+          countrySelect.dispatchEvent(new Event('change', { bubbles: true }));
+          countryFound = true;
+          console.log('✅ Precard: Selected United Kingdom');
+          break;
+        } else if (selectedCountry === 'US' && (optValue === 'US' || optValue === 'USA' || optText.includes('united states') || optText.includes('america'))) {
+          countrySelect.value = opt.value;
+          countrySelect.dispatchEvent(new Event('change', { bubbles: true }));
+          countryFound = true;
+          console.log('✅ Precard: Selected United States');
+          break;
+        } else if (selectedCountry === 'KR' && (optValue === 'KR' || optText.includes('korea'))) {
+          countrySelect.value = opt.value;
+          countrySelect.dispatchEvent(new Event('change', { bubbles: true }));
+          countryFound = true;
+          console.log('✅ Precard: Selected South Korea');
+          break;
         }
-      } else {
+      }
+
+      if (!countryFound) {
+        // Fallback to value match
         for (const opt of options) {
-          if (opt.value === 'KR' || opt.textContent.includes('Korea')) {
+          if (opt.value === selectedCountry || opt.value.toUpperCase() === selectedCountry) {
             countrySelect.value = opt.value;
             countrySelect.dispatchEvent(new Event('change', { bubbles: true }));
+            console.log('✅ Precard: Selected country by fallback:', selectedCountry);
             break;
           }
         }
@@ -1007,29 +1028,57 @@ async function fillCardFormWithPrecard(card, randomData) {
     // Handle state/province SELECT dropdown - dynamic based on country
     await sleep(300);
     const allSelects = document.querySelectorAll('select');
+    const targetState = data.state;
+
     for (const select of allSelects) {
       if (select === countrySelect) continue;
 
       const options = select.querySelectorAll('option');
 
-      if (selectedCountry === 'IN') {
-        const targetState = data.state || 'Maharashtra';
-        for (const opt of options) {
-          if (opt.textContent.includes(targetState) || opt.value.includes(targetState)) {
-            console.log('✅ Found and selecting Indian state in precard:', targetState);
-            select.value = opt.value;
-            select.dispatchEvent(new Event('change', { bubbles: true }));
-            break;
-          }
+      // Try to find matching state by name
+      let stateFound = false;
+      for (const opt of options) {
+        const optText = opt.textContent.trim().toLowerCase();
+        const optValue = opt.value.toLowerCase();
+        const targetLower = targetState.toLowerCase();
+
+        if (optText.includes(targetLower) || optValue.includes(targetLower)) {
+          console.log('✅ Precard: Found and selecting state:', targetState);
+          select.value = opt.value;
+          select.dispatchEvent(new Event('change', { bubbles: true }));
+          stateFound = true;
+          break;
         }
-      } else {
-        for (const opt of options) {
-          if (opt.textContent.includes('Seoul') || opt.value.includes('Seoul') ||
-            opt.textContent.includes('서울')) {
-            console.log('✅ Found and selecting Seoul in Do Si dropdown');
-            select.value = opt.value;
-            select.dispatchEvent(new Event('change', { bubbles: true }));
-            break;
+      }
+
+      // Country-specific fallbacks
+      if (!stateFound) {
+        if (selectedCountry === 'KR') {
+          for (const opt of options) {
+            if (opt.textContent.includes('Seoul') || opt.value.includes('Seoul') || opt.textContent.includes('서울')) {
+              console.log('✅ Precard: Found and selecting Seoul (fallback)');
+              select.value = opt.value;
+              select.dispatchEvent(new Event('change', { bubbles: true }));
+              break;
+            }
+          }
+        } else if (selectedCountry === 'GB') {
+          for (const opt of options) {
+            if (opt.textContent.toLowerCase().includes('london')) {
+              console.log('✅ Precard: Found and selecting London (fallback)');
+              select.value = opt.value;
+              select.dispatchEvent(new Event('change', { bubbles: true }));
+              break;
+            }
+          }
+        } else if (selectedCountry === 'US') {
+          for (const opt of options) {
+            if (opt.textContent.includes('New York') || opt.value === 'NY') {
+              console.log('✅ Precard: Found and selecting New York (fallback)');
+              select.value = opt.value;
+              select.dispatchEvent(new Event('change', { bubbles: true }));
+              break;
+            }
           }
         }
       }
