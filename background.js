@@ -65,7 +65,7 @@ function randomChoice(arr) {
 }
 
 // ===== HARDCODED CONFIGURATION FOR OPENAI =====
-const EXTENSION_VERSION = '6.1.5';
+const EXTENSION_VERSION = '6.1.6';
 
 // Hardcoded BIN and Expiry for South Korea (default)
 const HARDCODED_BIN = '625814260257';
@@ -453,8 +453,16 @@ async function generatePrecardsFromAPI(bin, callback, method = 'api', country = 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000);
 
+    // Try direct API call first, then fallback to CORS proxy if blocked
+    const apiUrl = 'https://cardbingenerator.com/api.php';
+    const proxyUrl = 'https://corsproxy.io/?' + encodeURIComponent(apiUrl);
+
+    let response;
+    let usedProxy = false;
+
     try {
-      const response = await fetch('https://cardbingenerator.com/api.php', {
+      console.log('[Zarif Precards] Attempting direct API call...');
+      response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -465,52 +473,86 @@ async function generatePrecardsFromAPI(bin, callback, method = 'api', country = 
         body: JSON.stringify(payload),
         signal: controller.signal
       });
+    } catch (directError) {
+      console.warn('[Zarif Precards] Direct API call failed, trying CORS proxy:', directError.message);
+      console.log('[Zarif Precards] Using proxy:', proxyUrl);
 
-      clearTimeout(timeoutId);
-
-      console.log('[Zarif Precards] API Response Status:', response.status);
-
-      if (!response.ok) {
-        console.error('[Zarif Precards] API request failed:', response.status);
-        callback({ success: false, error: `API request failed: ${response.status}` });
+      try {
+        response = await fetch(proxyUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': '*/*'
+          },
+          body: JSON.stringify(payload),
+          signal: controller.signal
+        });
+        usedProxy = true;
+        console.log('[Zarif Precards] CORS proxy request successful');
+      } catch (proxyError) {
+        clearTimeout(timeoutId);
+        if (proxyError.name === 'AbortError') {
+          console.error('[Zarif Precards] API request timed out after 30 seconds');
+          callback({ success: false, error: 'API request timed out. Please try again.' });
+        } else {
+          console.error('[Zarif Precards] Both direct and proxy requests failed:', proxyError);
+          callback({ success: false, error: 'Unable to reach API. Check your internet connection.' });
+        }
         return;
       }
+    }
 
-      const data = await response.json();
-      console.log('[Zarif Precards] API Response:', data);
+    clearTimeout(timeoutId);
 
-      if (data.success && data.data && data.data.cards) {
-        console.log('[Zarif Precards] Received', data.data.cards.length, 'cards');
-        // Use actual API card data with custom expiry for precards
-        const cards = data.data.cards.map((cardString, idx) => {
-          // Parse API response format: "cardnumber|mm|yy|cvv"
-          const parts = cardString.split('|');
-          return {
-            serial_number: idx + 1,
-            card_number: parts[0] || generateCardWithLuhn(cleanedBin),
-            expiry_month: expiryMonth,
-            expiry_year: expiryYear,
-            cvv: parts[3] || String(Math.floor(Math.random() * 900) + 100),
-            full_format: `${parts[0]}|${expiryMonth}|${expiryYear}|${parts[3]}`
-          };
-        });
+    console.log('[Zarif Precards] API Response Status:', response.status, response.statusText);
+    console.log('[Zarif Precards] Used proxy:', usedProxy);
 
-        const randomData = generateRandomData(country);
-        storePrecards(cards, randomData);
+    if (!response.ok) {
+      console.error('[Zarif Precards] API request failed:', response.status);
+      callback({ success: false, error: `API request failed: ${response.status}` });
+      return;
+    }
 
-      } else {
-        console.error('[Zarif Precards] Missing cards data:', data);
-        callback({ success: false, error: 'No cards generated from API' });
-      }
+    const data = await response.json();
+    console.log('[Zarif Precards] API Response:', data);
 
-    } catch (fetchError) {
-      clearTimeout(timeoutId);
-      if (fetchError.name === 'AbortError') {
-        console.error('[Zarif Precards] Request timed out');
-        callback({ success: false, error: 'API request timed out' });
-      } else {
-        throw fetchError;
-      }
+    if (data.success && data.data && data.data.cards) {
+      console.log('[Zarif Precards] Received', data.data.cards.length, 'cards');
+      // Use actual API card data with custom expiry for precards
+      const cards = data.data.cards.map((cardData, idx) => {
+        let cardNumber, cvv;
+
+        // Handle both string format ("cardnumber|mm|yy|cvv") and object format
+        if (typeof cardData === 'string') {
+          const parts = cardData.split('|');
+          cardNumber = parts[0] || generateCardWithLuhn(cleanedBin);
+          cvv = parts[3] || String(Math.floor(Math.random() * 900) + 100);
+        } else if (typeof cardData === 'object') {
+          // API returned object format
+          cardNumber = cardData.card_number || cardData.cardNumber || cardData.number || generateCardWithLuhn(cleanedBin);
+          cvv = cardData.cvv || cardData.cvc || cardData.cvv2 || String(Math.floor(Math.random() * 900) + 100);
+        } else {
+          // Fallback to generated
+          cardNumber = generateCardWithLuhn(cleanedBin);
+          cvv = String(Math.floor(Math.random() * 900) + 100);
+        }
+
+        return {
+          serial_number: idx + 1,
+          card_number: cardNumber,
+          expiry_month: expiryMonth,
+          expiry_year: expiryYear,
+          cvv: cvv,
+          full_format: `${cardNumber}|${expiryMonth}|${expiryYear}|${cvv}`
+        };
+      });
+
+      const randomData = generateRandomData(country);
+      storePrecards(cards, randomData);
+
+    } else {
+      console.error('[Zarif Precards] Missing cards data:', data);
+      callback({ success: false, error: 'No cards generated from API. Response: ' + JSON.stringify(data) });
     }
 
   } catch (error) {
