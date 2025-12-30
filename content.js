@@ -424,28 +424,46 @@ async function fillCardForm() {
       console.log('✅ Found country select, setting to:', selectedCountry);
       const options = countrySelect.querySelectorAll('option');
 
-      if (selectedCountry === 'IN') {
-        // Select India - be specific to avoid matching "British Indian Ocean Territory"
-        for (const opt of options) {
-          // First priority: exact value match
-          if (opt.value === 'IN') {
-            countrySelect.value = opt.value;
-            countrySelect.dispatchEvent(new Event('change', { bubbles: true }));
-            break;
-          }
-          // Second priority: exact text match for "India"
-          if (opt.textContent.trim() === 'India') {
-            countrySelect.value = opt.value;
-            countrySelect.dispatchEvent(new Event('change', { bubbles: true }));
-            break;
-          }
+      // Find and select the matching country
+      let countryFound = false;
+      for (const opt of options) {
+        const optValue = opt.value.toUpperCase();
+        const optText = opt.textContent.trim().toLowerCase();
+
+        if (selectedCountry === 'IN' && (optValue === 'IN' || optText === 'india')) {
+          countrySelect.value = opt.value;
+          countrySelect.dispatchEvent(new Event('change', { bubbles: true }));
+          countryFound = true;
+          console.log('✅ Selected India');
+          break;
+        } else if (selectedCountry === 'GB' && (optValue === 'GB' || optValue === 'UK' || optText.includes('united kingdom') || optText === 'uk')) {
+          countrySelect.value = opt.value;
+          countrySelect.dispatchEvent(new Event('change', { bubbles: true }));
+          countryFound = true;
+          console.log('✅ Selected United Kingdom');
+          break;
+        } else if (selectedCountry === 'US' && (optValue === 'US' || optValue === 'USA' || optText.includes('united states') || optText === 'usa')) {
+          countrySelect.value = opt.value;
+          countrySelect.dispatchEvent(new Event('change', { bubbles: true }));
+          countryFound = true;
+          console.log('✅ Selected United States');
+          break;
+        } else if (selectedCountry === 'KR' && (optValue === 'KR' || optText.includes('korea'))) {
+          countrySelect.value = opt.value;
+          countrySelect.dispatchEvent(new Event('change', { bubbles: true }));
+          countryFound = true;
+          console.log('✅ Selected South Korea');
+          break;
         }
-      } else {
-        // Default to South Korea
+      }
+
+      // Fallback if exact match not found
+      if (!countryFound) {
         for (const opt of options) {
-          if (opt.value === 'KR' || opt.textContent.includes('Korea')) {
+          if (opt.value === selectedCountry) {
             countrySelect.value = opt.value;
             countrySelect.dispatchEvent(new Event('change', { bubbles: true }));
+            console.log('✅ Selected country by value fallback:', selectedCountry);
             break;
           }
         }
@@ -457,6 +475,7 @@ async function fillCardForm() {
     await sleep(500);
 
     let stateFound = false;
+    const targetState = randomData.state;
 
     // First try specific selectors
     const stateSelectors = [
@@ -465,7 +484,8 @@ async function fillCardForm() {
       'select[name*="region"]',
       'select[aria-label*="State"]',
       'select[aria-label*="Province"]',
-      'select[aria-label*="Do Si"]'
+      'select[aria-label*="Do Si"]',
+      'select[aria-label*="County"]'
     ];
 
     for (const selector of stateSelectors) {
@@ -473,31 +493,58 @@ async function fillCardForm() {
       if (stateSelect && stateSelect !== countrySelect) {
         const options = stateSelect.querySelectorAll('option');
 
-        if (selectedCountry === 'IN') {
-          // For India, find the matching state from randomData
-          const targetState = randomData.state || 'Maharashtra';
-          for (const opt of options) {
-            if (opt.textContent.includes(targetState) || opt.value.includes(targetState)) {
-              console.log('✅ Found and selecting Indian state:', targetState);
-              stateSelect.value = opt.value;
-              stateSelect.dispatchEvent(new Event('change', { bubbles: true }));
-              stateFound = true;
-              break;
-            }
+        // Try to find matching state based on randomData.state
+        for (const opt of options) {
+          const optText = opt.textContent.trim().toLowerCase();
+          const optValue = opt.value.toLowerCase();
+          const targetLower = targetState.toLowerCase();
+
+          if (optText.includes(targetLower) || optValue.includes(targetLower) ||
+            optText === targetLower || optValue === targetLower) {
+            console.log('✅ Found and selecting state:', targetState);
+            stateSelect.value = opt.value;
+            stateSelect.dispatchEvent(new Event('change', { bubbles: true }));
+            stateFound = true;
+            break;
           }
-        } else {
-          // For Korea, select Seoul
-          for (const opt of options) {
-            if (opt.textContent.includes('Seoul') || opt.value.includes('Seoul') ||
-              opt.textContent.includes('서울')) {
-              console.log('✅ Found and selecting Seoul in state dropdown via selector');
-              stateSelect.value = opt.value;
-              stateSelect.dispatchEvent(new Event('change', { bubbles: true }));
-              stateFound = true;
-              break;
+        }
+
+        // Country-specific fallbacks if exact match not found
+        if (!stateFound) {
+          if (selectedCountry === 'KR') {
+            for (const opt of options) {
+              if (opt.textContent.includes('Seoul') || opt.value.includes('Seoul') ||
+                opt.textContent.includes('서울')) {
+                console.log('✅ Found and selecting Seoul (fallback)');
+                stateSelect.value = opt.value;
+                stateSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                stateFound = true;
+                break;
+              }
+            }
+          } else if (selectedCountry === 'GB') {
+            for (const opt of options) {
+              if (opt.textContent.toLowerCase().includes('london') || opt.value.toLowerCase().includes('london')) {
+                console.log('✅ Found and selecting London (fallback)');
+                stateSelect.value = opt.value;
+                stateSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                stateFound = true;
+                break;
+              }
+            }
+          } else if (selectedCountry === 'US') {
+            for (const opt of options) {
+              if (opt.textContent.includes('New York') || opt.value === 'NY') {
+                console.log('✅ Found and selecting New York (fallback)');
+                stateSelect.value = opt.value;
+                stateSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                stateFound = true;
+                break;
+              }
             }
           }
         }
+
         if (stateFound) break;
       }
     }
@@ -511,27 +558,18 @@ async function fillCardForm() {
 
         const options = select.querySelectorAll('option');
 
-        if (selectedCountry === 'IN') {
-          const targetState = randomData.state || 'Maharashtra';
-          for (const opt of options) {
-            if (opt.textContent.includes(targetState) || opt.value.includes(targetState)) {
-              console.log('✅ Found and selecting Indian state via fallback:', targetState);
-              select.value = opt.value;
-              select.dispatchEvent(new Event('change', { bubbles: true }));
-              stateFound = true;
-              break;
-            }
-          }
-        } else {
-          for (const opt of options) {
-            if (opt.textContent.includes('Seoul') || opt.value.includes('Seoul') ||
-              opt.textContent.includes('서울')) {
-              console.log('✅ Found and selecting Seoul in Do Si dropdown via fallback');
-              select.value = opt.value;
-              select.dispatchEvent(new Event('change', { bubbles: true }));
-              stateFound = true;
-              break;
-            }
+        // Try to find matching state
+        for (const opt of options) {
+          const optText = opt.textContent.trim().toLowerCase();
+          const optValue = opt.value.toLowerCase();
+          const targetLower = targetState.toLowerCase();
+
+          if (optText.includes(targetLower) || optValue.includes(targetLower)) {
+            console.log('✅ Found and selecting state via fallback:', targetState);
+            select.value = opt.value;
+            select.dispatchEvent(new Event('change', { bubbles: true }));
+            stateFound = true;
+            break;
           }
         }
         if (stateFound) break;
