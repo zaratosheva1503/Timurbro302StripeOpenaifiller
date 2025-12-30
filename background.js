@@ -60,12 +60,86 @@ const INDIAN_STREETS = [
   "Rajaji Street", "Anna Nagar", "Indira Colony", "Sarojini Nagar", "Lajpat Nagar"
 ];
 
+// UK First Names
+const UK_FIRST_NAMES = [
+  "Oliver", "George", "Harry", "Jack", "Jacob", "Noah", "Charlie", "Muhammad",
+  "Thomas", "Oscar", "William", "James", "Leo", "Alfie", "Henry", "Archie",
+  "Olivia", "Amelia", "Isla", "Ava", "Emily", "Isabella", "Mia", "Poppy",
+  "Ella", "Lily", "Grace", "Sophie", "Evie", "Charlotte", "Freya", "Florence"
+];
+
+// UK Last Names
+const UK_LAST_NAMES = [
+  "Smith", "Jones", "Williams", "Taylor", "Brown", "Davies", "Evans", "Wilson",
+  "Thomas", "Roberts", "Johnson", "Lewis", "Walker", "Robinson", "Wood", "Thompson",
+  "White", "Watson", "Jackson", "Wright", "Green", "Harris", "Cooper", "King",
+  "Lee", "Martin", "Clarke", "James", "Morgan", "Hughes", "Edwards", "Hill"
+];
+
+// UK Cities
+const UK_CITIES = [
+  { city: "London", state: "Greater London", zip: "SW1A 1AA" },
+  { city: "Manchester", state: "Greater Manchester", zip: "M1 1AD" },
+  { city: "Birmingham", state: "West Midlands", zip: "B1 1AA" },
+  { city: "Leeds", state: "West Yorkshire", zip: "LS1 1AA" },
+  { city: "Liverpool", state: "Merseyside", zip: "L1 1AA" },
+  { city: "Bristol", state: "Bristol", zip: "BS1 1AA" },
+  { city: "Edinburgh", state: "Scotland", zip: "EH1 1AA" },
+  { city: "Glasgow", state: "Scotland", zip: "G1 1AA" },
+  { city: "Cardiff", state: "Wales", zip: "CF10 1AA" },
+  { city: "Newcastle", state: "Tyne and Wear", zip: "NE1 1AA" }
+];
+
+// UK Streets
+const UK_STREETS = [
+  "High Street", "Station Road", "Church Lane", "Park Avenue", "Victoria Road",
+  "Mill Lane", "Kings Road", "Queens Drive", "Green Lane", "Manor Road",
+  "London Road", "York Street", "Albert Road", "Main Street", "Market Street"
+];
+
+// USA First Names
+const USA_FIRST_NAMES = [
+  "James", "Michael", "Robert", "John", "David", "William", "Richard", "Joseph",
+  "Thomas", "Christopher", "Charles", "Daniel", "Matthew", "Anthony", "Mark", "Donald",
+  "Emma", "Olivia", "Ava", "Isabella", "Sophia", "Mia", "Charlotte", "Amelia",
+  "Harper", "Evelyn", "Abigail", "Emily", "Elizabeth", "Sofia", "Avery", "Ella"
+];
+
+// USA Last Names
+const USA_LAST_NAMES = [
+  "Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis",
+  "Rodriguez", "Martinez", "Hernandez", "Lopez", "Gonzalez", "Wilson", "Anderson", "Thomas",
+  "Taylor", "Moore", "Jackson", "Martin", "Lee", "Perez", "Thompson", "White",
+  "Harris", "Sanchez", "Clark", "Ramirez", "Lewis", "Robinson", "Walker", "Young"
+];
+
+// USA Cities
+const USA_CITIES = [
+  { city: "New York", state: "New York", zip: "10001" },
+  { city: "Los Angeles", state: "California", zip: "90001" },
+  { city: "Chicago", state: "Illinois", zip: "60601" },
+  { city: "Houston", state: "Texas", zip: "77001" },
+  { city: "Phoenix", state: "Arizona", zip: "85001" },
+  { city: "Philadelphia", state: "Pennsylvania", zip: "19101" },
+  { city: "San Antonio", state: "Texas", zip: "78201" },
+  { city: "San Diego", state: "California", zip: "92101" },
+  { city: "Dallas", state: "Texas", zip: "75201" },
+  { city: "Miami", state: "Florida", zip: "33101" }
+];
+
+// USA Streets
+const USA_STREETS = [
+  "Main Street", "Oak Avenue", "Maple Drive", "Cedar Lane", "Pine Street",
+  "Elm Street", "Washington Boulevard", "Lincoln Avenue", "Park Place", "Broadway",
+  "First Street", "Second Avenue", "Third Street", "Lake Drive", "River Road"
+];
+
 function randomChoice(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
 // ===== HARDCODED CONFIGURATION FOR OPENAI =====
-const EXTENSION_VERSION = '6.1.7';
+const EXTENSION_VERSION = '6.1.8';
 
 // ===== HOT RELOAD FOR DEVELOPMENT =====
 // Checks for file changes every 2 seconds and reloads extension if detected
@@ -152,6 +226,38 @@ function generateRandomData(country = 'IN') {
       zip: cityData.zip,
       state: cityData.state,
       country: 'IN'
+    };
+  }
+
+  if (country === 'UK' || country === 'GB') {
+    // Generate unique UK data
+    const cityData = randomChoice(UK_CITIES);
+    const houseNumber = Math.floor(Math.random() * 200) + 1;
+    const street = randomChoice(UK_STREETS);
+    return {
+      name: `${randomChoice(UK_FIRST_NAMES)} ${randomChoice(UK_LAST_NAMES)}`,
+      address: `${houseNumber} ${street}`,
+      address2: '',
+      city: cityData.city,
+      zip: cityData.zip,
+      state: cityData.state,
+      country: 'GB'
+    };
+  }
+
+  if (country === 'US' || country === 'USA') {
+    // Generate unique USA data
+    const cityData = randomChoice(USA_CITIES);
+    const houseNumber = Math.floor(Math.random() * 9999) + 1;
+    const street = randomChoice(USA_STREETS);
+    return {
+      name: `${randomChoice(USA_FIRST_NAMES)} ${randomChoice(USA_LAST_NAMES)}`,
+      address: `${houseNumber} ${street}`,
+      address2: '',
+      city: cityData.city,
+      zip: cityData.zip,
+      state: cityData.state,
+      country: 'US'
     };
   }
 
