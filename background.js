@@ -139,7 +139,7 @@ function randomChoice(arr) {
 }
 
 // ===== HARDCODED CONFIGURATION FOR OPENAI =====
-const EXTENSION_VERSION = '6.1.9';
+const EXTENSION_VERSION = '6.2.0';
 
 // ===== HOT RELOAD FOR DEVELOPMENT =====
 // Checks for file changes every 2 seconds and reloads extension if detected
@@ -213,6 +213,7 @@ const KR_ZIP = '06130';
 const KR_STATE = 'Gangnam-gu';
 
 function generateRandomData(country = 'IN') {
+  console.log('[Zarif v6.2.0] generateRandomData called with country:', country);
   if (country === 'IN') {
     // Generate unique Indian data
     const cityData = randomChoice(INDIAN_CITIES);
@@ -424,9 +425,11 @@ async function generateCardsFromAPI(bin, stripeTabId, callback, method = 'api', 
       return;
     }
 
-    console.log('[Zarif] Starting card generation for country:', country);
-    console.log('[Zarif] Using BIN:', cleanedBin);
-    console.log('[Zarif] Expiry:', expiryMonth + '/' + expiryYear);
+    console.log('[Zarif v6.2.0] ===== CARD GENERATION START =====');
+    console.log('[Zarif v6.2.0] Country parameter received:', country);
+    console.log('[Zarif v6.2.0] Country type:', typeof country);
+    console.log('[Zarif v6.2.0] Using BIN:', cleanedBin);
+    console.log('[Zarif v6.2.0] Expiry:', expiryMonth + '/' + expiryYear);
 
     const payload = {
       action: "generateAdvance",
