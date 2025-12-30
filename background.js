@@ -65,7 +65,62 @@ function randomChoice(arr) {
 }
 
 // ===== HARDCODED CONFIGURATION FOR OPENAI =====
-const EXTENSION_VERSION = '6.1.6';
+const EXTENSION_VERSION = '6.1.7';
+
+// ===== HOT RELOAD FOR DEVELOPMENT =====
+// Checks for file changes every 2 seconds and reloads extension if detected
+const HOT_RELOAD_ENABLED = true;
+const HOT_RELOAD_INTERVAL = 2000; // 2 seconds
+
+let lastModifiedTimes = {};
+
+async function checkForFileChanges() {
+  if (!HOT_RELOAD_ENABLED) return;
+
+  try {
+    // Get list of extension files to watch
+    const filesToWatch = ['background.js', 'content.js', 'popup.js', 'popup.html', 'styles.css', 'manifest.json'];
+
+    for (const file of filesToWatch) {
+      try {
+        const response = await fetch(chrome.runtime.getURL(file), { cache: 'no-store' });
+        const text = await response.text();
+        const currentHash = hashCode(text);
+
+        if (lastModifiedTimes[file] && lastModifiedTimes[file] !== currentHash) {
+          console.log(`[Zarif Hot Reload] File changed: ${file} - Reloading extension...`);
+          chrome.runtime.reload();
+          return;
+        }
+
+        lastModifiedTimes[file] = currentHash;
+      } catch (e) {
+        // File might not exist, skip it
+      }
+    }
+  } catch (error) {
+    console.error('[Zarif Hot Reload] Error checking for changes:', error);
+  }
+}
+
+function hashCode(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return hash;
+}
+
+// Start hot reload watcher
+if (HOT_RELOAD_ENABLED) {
+  console.log('[Zarif Hot Reload] Hot reload enabled - watching for file changes...');
+  // Initial hash capture
+  checkForFileChanges();
+  // Start interval check
+  setInterval(checkForFileChanges, HOT_RELOAD_INTERVAL);
+}
 
 // Hardcoded BIN and Expiry for South Korea (default)
 const HARDCODED_BIN = '625814260257';
