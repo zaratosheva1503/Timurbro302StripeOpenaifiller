@@ -424,6 +424,12 @@ async function fillCardForm() {
       console.log('✅ Found country select, setting to:', selectedCountry);
       const options = countrySelect.querySelectorAll('option');
 
+      // Debug: log all available options
+      console.log('[Zarif] Available country options:');
+      options.forEach((opt, i) => {
+        console.log(`  ${i}: value="${opt.value}" text="${opt.textContent.trim()}"`);
+      });
+
       // Find and select the matching country
       let countryFound = false;
       for (const opt of options) {
@@ -436,13 +442,13 @@ async function fillCardForm() {
           countryFound = true;
           console.log('✅ Selected India');
           break;
-        } else if (selectedCountry === 'GB' && (optValue === 'GB' || optValue === 'UK' || optText.includes('united kingdom') || optText === 'uk')) {
+        } else if (selectedCountry === 'GB' && (optValue === 'GB' || optValue === 'UK' || optText.includes('kingdom') || optText.includes('britain') || optText === 'uk' || optText === 'united kingdom')) {
           countrySelect.value = opt.value;
           countrySelect.dispatchEvent(new Event('change', { bubbles: true }));
           countryFound = true;
           console.log('✅ Selected United Kingdom');
           break;
-        } else if (selectedCountry === 'US' && (optValue === 'US' || optValue === 'USA' || optText.includes('united states') || optText === 'usa')) {
+        } else if (selectedCountry === 'US' && (optValue === 'US' || optValue === 'USA' || optText.includes('united states') || optText === 'usa' || optText === 'america' || optText.includes('america'))) {
           countrySelect.value = opt.value;
           countrySelect.dispatchEvent(new Event('change', { bubbles: true }));
           countryFound = true;
@@ -459,14 +465,20 @@ async function fillCardForm() {
 
       // Fallback if exact match not found
       if (!countryFound) {
+        console.log('[Zarif] Country not found by primary match, trying fallback...');
         for (const opt of options) {
-          if (opt.value === selectedCountry) {
+          if (opt.value === selectedCountry || opt.value.toUpperCase() === selectedCountry) {
             countrySelect.value = opt.value;
             countrySelect.dispatchEvent(new Event('change', { bubbles: true }));
             console.log('✅ Selected country by value fallback:', selectedCountry);
+            countryFound = true;
             break;
           }
         }
+      }
+
+      if (!countryFound) {
+        console.log('[Zarif] ❌ Could not find country:', selectedCountry);
       }
       await sleep(500);
     }

@@ -139,7 +139,7 @@ function randomChoice(arr) {
 }
 
 // ===== HARDCODED CONFIGURATION FOR OPENAI =====
-const EXTENSION_VERSION = '6.2.0';
+const EXTENSION_VERSION = '6.2.1';
 
 // ===== HOT RELOAD FOR DEVELOPMENT =====
 // Checks for file changes every 2 seconds and reloads extension if detected
