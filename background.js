@@ -139,7 +139,7 @@ function randomChoice(arr) {
 }
 
 // ===== HARDCODED CONFIGURATION FOR OPENAI =====
-const EXTENSION_VERSION = '6.3.5';
+const EXTENSION_VERSION = '6.3.6';
 
 // ===== HOT RELOAD FOR DEVELOPMENT =====
 // Checks for file changes every 2 seconds and reloads extension if detected
@@ -1320,7 +1320,7 @@ function fillEmailAndContinue(email) {
   }
 }
 
-// Fill password and click continue
+// Fill password and click continue - Robust version
 function fillPasswordAndContinue(password) {
   console.log('[K12] Filling password');
 
@@ -1331,21 +1331,59 @@ function fillPasswordAndContinue(password) {
     passwordInput.focus();
     passwordInput.value = '';
 
-    for (const char of password) {
-      passwordInput.value += char;
-      passwordInput.dispatchEvent(new Event('input', { bubbles: true }));
-    }
-    passwordInput.dispatchEvent(new Event('change', { bubbles: true }));
+    // Type character by character with slight delay to mimic human speed and trigger frameworks
+    let i = 0;
+    const typeChar = () => {
+      if (i < password.length) {
+        passwordInput.value += password[i];
+        passwordInput.dispatchEvent(new Event('input', { bubbles: true }));
+        i++;
+        setTimeout(typeChar, 10);
+      } else {
+        // Trigger final events
+        passwordInput.dispatchEvent(new Event('change', { bubbles: true }));
+        passwordInput.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
 
-    setTimeout(() => {
-      const continueBtn = document.querySelector('button[type="submit"]') ||
-        Array.from(document.querySelectorAll('button')).find(b =>
-          b.textContent.toLowerCase().includes('continue'));
-      if (continueBtn) {
-        console.log('[K12] Clicking continue after password');
-        continueBtn.click();
+        // Wait for button to enable and click
+        checkAndClickContinue(0);
       }
-    }, 800);
+    };
+
+    typeChar();
+  }
+}
+
+// Helper to check button state and click
+function checkAndClickContinue(attempts) {
+  if (attempts > 50) return; // Stop after 5 seconds
+
+  const continueBtn = document.querySelector('button[type="submit"]') ||
+    Array.from(document.querySelectorAll('button')).find(b =>
+      b.textContent.toLowerCase().includes('continue'));
+
+  if (continueBtn) {
+    if (!continueBtn.disabled) {
+      console.log('[K12] Clicking enabled allow/continue button');
+      continueBtn.click();
+
+      // Double check click worked by trying again if still present
+      setTimeout(() => {
+        if (document.body.contains(continueBtn)) {
+          continueBtn.click();
+        }
+      }, 1000);
+    } else {
+      // Button disabled, re-trigger events on input
+      console.log('[K12] Button disabled, re-triggering events...');
+      const passwordInput = document.querySelector('input[type="password"]');
+      if (passwordInput) {
+        passwordInput.dispatchEvent(new Event('input', { bubbles: true }));
+        passwordInput.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      setTimeout(() => checkAndClickContinue(attempts + 1), 200);
+    }
+  } else {
+    setTimeout(() => checkAndClickContinue(attempts + 1), 200);
   }
 }
 
