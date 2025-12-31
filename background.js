@@ -139,7 +139,7 @@ function randomChoice(arr) {
 }
 
 // ===== HARDCODED CONFIGURATION FOR OPENAI =====
-const EXTENSION_VERSION = '6.3.3';
+const EXTENSION_VERSION = '6.3.4';
 
 // ===== HOT RELOAD FOR DEVELOPMENT =====
 // Checks for file changes every 2 seconds and reloads extension if detected
@@ -966,24 +966,71 @@ function sleep(ms) {
 
 // Injected into temp mail page to create email
 function createTempEmail(emailName) {
-  const emailInput = document.querySelector('input[type="text"]') ||
-    document.querySelector('input[placeholder*="Input"]') ||
-    document.querySelector('input[class*="input"]');
+  console.log('[K12 Create] Creating email:', emailName);
 
-  if (emailInput) {
-    emailInput.value = emailName;
-    emailInput.dispatchEvent(new Event('input', { bubbles: true }));
+  // Find the email input field
+  const allInputs = document.querySelectorAll('input[type="text"], input:not([type])');
+  let emailInput = null;
+
+  for (const input of allInputs) {
+    const placeholder = (input.placeholder || '').toLowerCase();
+    if (placeholder.includes('input') || placeholder.includes('name') || !input.readOnly) {
+      emailInput = input;
+      break;
+    }
   }
 
-  // Click create button
-  setTimeout(() => {
-    const createBtn = document.querySelector('button[class*="create"]') ||
-      Array.from(document.querySelectorAll('button')).find(b =>
-        b.textContent.toLowerCase().includes('create'));
-    if (createBtn) {
-      createBtn.click();
+  if (!emailInput) {
+    emailInput = document.querySelector('input[type="text"]:not([readonly])');
+  }
+
+  if (emailInput) {
+    console.log('[K12 Create] Found input, filling:', emailName);
+    emailInput.value = '';
+    emailInput.focus();
+
+    // Type character by character
+    for (const char of emailName) {
+      emailInput.value += char;
+      emailInput.dispatchEvent(new Event('input', { bubbles: true }));
     }
-  }, 1000);
+    emailInput.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  // Try to select erzi.me domain if there's a dropdown
+  setTimeout(() => {
+    const domainSelects = document.querySelectorAll('select');
+    for (const select of domainSelects) {
+      const options = select.querySelectorAll('option');
+      for (const opt of options) {
+        if (opt.value.includes('erzi.me') || opt.textContent.includes('erzi.me')) {
+          select.value = opt.value;
+          select.dispatchEvent(new Event('change', { bubbles: true }));
+          console.log('[K12 Create] Selected erzi.me domain');
+          break;
+        }
+      }
+    }
+
+    // Click create button
+    setTimeout(() => {
+      const buttons = document.querySelectorAll('button');
+      let createBtn = null;
+
+      for (const btn of buttons) {
+        const text = btn.textContent.toLowerCase().trim();
+        if (text.includes('create') || text.includes('register') || text.includes('submit')) {
+          createBtn = btn;
+          break;
+        }
+      }
+
+      if (createBtn) {
+        console.log('[K12 Create] Clicking create button');
+        createBtn.click();
+      }
+    }, 500);
+  }, 500);
 }
 
 // Injected into temp mail to get verification code - finds LATEST code
@@ -1227,37 +1274,79 @@ async function fetchK12VerificationCode(email, emailName) {
   }
 }
 
-// Injected to login to temp mail with existing email
+// Injected to login to temp mail with existing email - MUST SWITCH ACCOUNTS
 function loginToTempMail(emailName) {
-  // Click on Login tab
-  const loginTab = Array.from(document.querySelectorAll('button, a, div')).find(el =>
-    el.textContent.toLowerCase().includes('login'));
+  console.log('[K12 Login] Switching to email:', emailName);
 
-  if (loginTab) {
-    loginTab.click();
+  // Step 1: Click on "User" tab at the top to access login
+  const userTab = Array.from(document.querySelectorAll('span, a, div, button')).find(el => {
+    const text = el.textContent.trim().toLowerCase();
+    return text === 'user' || text.includes('user login');
+  });
+
+  if (userTab) {
+    console.log('[K12 Login] Found User tab, clicking...');
+    userTab.click();
   }
 
-  // Wait a bit then fill the email input
+  // Step 2: Wait for login form, then fill and submit
   setTimeout(() => {
-    const emailInput = document.querySelector('input[type="text"]') ||
-      document.querySelector('input[placeholder*="Input"]');
+    // Clear any existing value and enter the new email name
+    const allInputs = document.querySelectorAll('input[type="text"], input:not([type])');
+    let emailInput = null;
 
-    if (emailInput) {
-      emailInput.value = emailName;
-      emailInput.dispatchEvent(new Event('input', { bubbles: true }));
+    for (const input of allInputs) {
+      const placeholder = (input.placeholder || '').toLowerCase();
+      if (placeholder.includes('input') || placeholder.includes('email') || placeholder.includes('name')) {
+        emailInput = input;
+        break;
+      }
     }
 
-    // Click login button
+    // If no input found by placeholder, take the first visible text input
+    if (!emailInput) {
+      emailInput = document.querySelector('input[type="text"]:not([readonly])') ||
+        document.querySelector('input:not([type]):not([readonly])');
+    }
+
+    if (emailInput) {
+      console.log('[K12 Login] Found email input, filling:', emailName);
+      emailInput.value = '';
+      emailInput.focus();
+
+      // Type the email name character by character for better compatibility
+      for (const char of emailName) {
+        emailInput.value += char;
+        emailInput.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      emailInput.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    // Step 3: Click the login/submit button
     setTimeout(() => {
-      const loginBtn = Array.from(document.querySelectorAll('button')).find(b =>
-        b.textContent.toLowerCase().includes('login') ||
-        b.textContent.toLowerCase().includes('user login'));
+      const buttons = document.querySelectorAll('button');
+      let loginBtn = null;
+
+      for (const btn of buttons) {
+        const text = btn.textContent.toLowerCase().trim();
+        if (text.includes('login') || text.includes('user login') || text.includes('submit')) {
+          loginBtn = btn;
+          break;
+        }
+      }
+
+      // Also try finding by class
+      if (!loginBtn) {
+        loginBtn = document.querySelector('button[class*="login"]') ||
+          document.querySelector('button[class*="submit"]');
+      }
 
       if (loginBtn) {
+        console.log('[K12 Login] Found login button, clicking...');
         loginBtn.click();
       }
-    }, 500);
-  }, 1000);
+    }, 800);
+  }, 1500);
 }
 
 // Click refresh button and open latest email
