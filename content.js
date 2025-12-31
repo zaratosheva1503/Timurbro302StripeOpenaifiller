@@ -1219,3 +1219,134 @@ if (isStripeIframe) {
   console.log('[Zarif] Running inside Stripe iframe');
 }
 
+// ========== K12 Auth.OpenAI.com Page Handlers ==========
+
+// Check if we're on an OpenAI auth page
+if (window.location.hostname === 'auth.openai.com') {
+  console.log('[Zarif K12] Detected auth.openai.com page');
+
+  // Wait for page to load then handle
+  setTimeout(() => {
+    handleOpenAIAuthPage();
+  }, 2000);
+}
+
+async function handleOpenAIAuthPage() {
+  const currentPath = window.location.pathname;
+  console.log('[Zarif K12] Current path:', currentPath);
+
+  // Get latest K12 account credentials
+  const storage = await chrome.storage.local.get(['k12Accounts']);
+  const accounts = storage.k12Accounts || [];
+
+  if (accounts.length === 0) {
+    console.log('[Zarif K12] No K12 accounts found');
+    return;
+  }
+
+  const latestAccount = accounts[0]; // Most recent account
+  console.log('[Zarif K12] Latest account:', latestAccount.email);
+
+  // Get email from the page to match
+  const emailDisplay = document.querySelector('[class*="email"], .email-address, input[type="email"][readonly], div[class*="Email"]');
+  const pageEmail = emailDisplay ? emailDisplay.textContent || emailDisplay.value : '';
+
+  // Find matching account
+  let matchingAccount = accounts.find(acc => pageEmail.includes(acc.email) || acc.email.includes(pageEmail.split('@')[0]));
+
+  if (!matchingAccount) {
+    // Try to find email in the page text
+    const pageText = document.body.innerText;
+    matchingAccount = accounts.find(acc => pageText.includes(acc.email));
+  }
+
+  const targetAccount = matchingAccount || latestAccount;
+  console.log('[Zarif K12] Using account:', targetAccount.email);
+
+  // Handle password page
+  if (currentPath.includes('/create-account/password') || currentPath.includes('/password')) {
+    console.log('[Zarif K12] Detected password page, auto-filling...');
+    await fillPasswordPage(targetAccount.password);
+  }
+
+  // Handle verification code page
+  if (currentPath.includes('/email-verification') || currentPath.includes('/verification')) {
+    console.log('[Zarif K12] Detected verification page');
+    showVerificationNotification();
+  }
+
+  // Handle about-you page (name/birthday)
+  if (currentPath.includes('/about-you')) {
+    console.log('[Zarif K12] Detected about-you page, auto-filling...');
+    await fillAboutYouPage();
+  }
+}
+
+async function fillPasswordPage(password) {
+  const passwordInput = document.querySelector('input[type="password"]') ||
+    document.querySelector('input[name="password"]');
+
+  if (passwordInput) {
+    passwordInput.value = password;
+    passwordInput.dispatchEvent(new Event('input', { bubbles: true }));
+    passwordInput.dispatchEvent(new Event('change', { bubbles: true }));
+
+    showNotification('🔑 Password auto-filled from K12 account!', 'success');
+    console.log('[Zarif K12] Password filled');
+
+    // Auto-click continue after short delay
+    await sleep(1000);
+    const continueBtn = document.querySelector('button[type="submit"]') ||
+      Array.from(document.querySelectorAll('button')).find(b =>
+        b.textContent.toLowerCase().includes('continue'));
+    if (continueBtn) {
+      console.log('[Zarif K12] Clicking continue button');
+      continueBtn.click();
+    }
+  }
+}
+
+async function fillAboutYouPage() {
+  // Fill name
+  const nameInput = document.querySelector('input[name="name"]') ||
+    document.querySelector('input[placeholder*="name"]') ||
+    document.querySelector('input[type="text"]');
+
+  if (nameInput && !nameInput.value) {
+    nameInput.value = 'User' + Math.floor(Math.random() * 10000);
+    nameInput.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  // Fill birthday - for the editable format MM/DD/YYYY
+  const birthdayInput = document.querySelector('input[placeholder*="Birthday"]') ||
+    document.querySelector('input[name*="birthday"]') ||
+    document.querySelector('input[type="date"]');
+
+  if (birthdayInput && !birthdayInput.value) {
+    const randomMonth = String(Math.floor(Math.random() * 12) + 1).padStart(2, '0');
+    const randomDay = String(Math.floor(Math.random() * 28) + 1).padStart(2, '0');
+    const randomYear = String(1990 + Math.floor(Math.random() * 10));
+
+    if (birthdayInput.type === 'date') {
+      birthdayInput.value = `${randomYear}-${randomMonth}-${randomDay}`;
+    } else {
+      birthdayInput.value = `${randomMonth}/${randomDay}/${randomYear}`;
+    }
+    birthdayInput.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  showNotification('👤 Profile info auto-filled!', 'success');
+
+  // Auto-click continue after short delay
+  await sleep(1000);
+  const continueBtn = document.querySelector('button[type="submit"]') ||
+    Array.from(document.querySelectorAll('button')).find(b =>
+      b.textContent.toLowerCase().includes('continue'));
+  if (continueBtn) {
+    continueBtn.click();
+  }
+}
+
+function showVerificationNotification() {
+  showNotification('📩 Use the extension to fetch the verification code!', 'info');
+}
