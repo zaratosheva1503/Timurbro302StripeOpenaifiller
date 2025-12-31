@@ -16,7 +16,7 @@
         <img src="images/zarif card auto logo.png" alt="Zarif Card Automation Logo" class="logo-icon">
         <div>
           <h2>Zarif Card Automation</h2>
-          <div class="version" id="versionDisplay">v6.2.2</div>
+          <div class="version" id="versionDisplay">v6.3.0</div>
         </div>
       </div>
     </div>
@@ -25,6 +25,7 @@
     <div class="tab-navigation">
       <button class="tab-btn active" data-tab="generate">Generate Now</button>
       <button class="tab-btn" data-tab="precards">Pre-Cards</button>
+      <button class="tab-btn" data-tab="k12">ChatGPT K12</button>
     </div>
 
     <!-- Tab Content: Generate Now -->
@@ -182,6 +183,70 @@
           <li>Click "Use" button next to any card</li>
           <li>Card details will auto-fill instantly!</li>
           <li>Regenerate cards anytime with new BIN</li>
+        </ol>
+      </div>
+    </div>
+
+    <!-- Tab Content: ChatGPT K12 -->
+    <div class="content tab-content" id="k12Tab">
+      <div class="k12-header">
+        <h3>🚀 Auto ChatGPT Account</h3>
+        <p>Create a new ChatGPT account automatically</p>
+      </div>
+
+      <div class="k12-progress-section" id="k12ProgressSection" style="display: none;">
+        <div class="progress-bar-container">
+          <div class="progress-bar" id="k12ProgressBar" style="width: 0%"></div>
+        </div>
+        <div class="progress-text">
+          <span id="k12ProgressPercent">0%</span>
+          <span id="k12ProgressStatus">Initializing...</span>
+        </div>
+      </div>
+
+      <div class="k12-result" id="k12Result" style="display: none;">
+        <div class="k12-success">
+          <span class="success-icon">✅</span>
+          <span>Account Created!</span>
+        </div>
+
+        <div class="credential-box">
+          <label>📧 Email:</label>
+          <div class="credential-value">
+            <span id="k12Email">-</span>
+            <button class="copy-btn" data-copy="k12Email" title="Copy">📋</button>
+          </div>
+        </div>
+
+        <div class="credential-box">
+          <label>🔑 Password:</label>
+          <div class="credential-value">
+            <span id="k12Password">-</span>
+            <button class="copy-btn" data-copy="k12Password" title="Copy">📋</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="k12-actions" id="k12Actions">
+        <button id="createAccountBtn" class="btn btn-primary btn-large">
+          🚀 CREATE ACCOUNT
+        </button>
+      </div>
+
+      <div class="k12-history" id="k12History">
+        <h4>📜 Recent Accounts</h4>
+        <div id="k12HistoryList" class="history-list">
+          <p class="no-history">No accounts created yet</p>
+        </div>
+      </div>
+
+      <div class="info k12-info">
+        <h4>ℹ️ How It Works:</h4>
+        <ol>
+          <li>Click "CREATE ACCOUNT" button</li>
+          <li>Wait for the progress to complete (~30-60 sec)</li>
+          <li>Copy email and password when done</li>
+          <li>Use credentials to login to ChatGPT</li>
         </ol>
       </div>
     </div>

@@ -653,3 +653,223 @@ body {
 .btn-use-card:active {
   transform: translateY(0);
 }
+
+/* ========== K12 Tab Styles ========== */
+.k12-header {
+  text-align: center;
+  margin-bottom: 15px;
+  padding: 10px;
+  background: linear-gradient(135deg, #1a2a3a 0%, #152535 100%);
+  border-radius: 8px;
+  border: 1px solid #2a4a6a;
+}
+
+.k12-header h3 {
+  font-size: 14px;
+  color: #60a5fa;
+  margin-bottom: 5px;
+}
+
+.k12-header p {
+  font-size: 10px;
+  color: #808080;
+}
+
+.k12-progress-section {
+  margin-bottom: 15px;
+  padding: 15px;
+  background: #1a1a1a;
+  border-radius: 8px;
+  border: 1px solid #3d3d3d;
+}
+
+.progress-bar-container {
+  width: 100%;
+  height: 20px;
+  background: #2a2a2a;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 10px;
+  border: 1px solid #3d3d3d;
+}
+
+.progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #3b82f6 0%, #60a5fa 50%, #93c5fd 100%);
+  border-radius: 10px;
+  transition: width 0.5s ease;
+  animation: progressGlow 2s ease-in-out infinite;
+}
+
+@keyframes progressGlow {
+  0%, 100% { box-shadow: 0 0 10px rgba(59, 130, 246, 0.3); }
+  50% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.6); }
+}
+
+.progress-text {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #a0a0a0;
+}
+
+#k12ProgressPercent {
+  font-weight: 700;
+  color: #60a5fa;
+}
+
+#k12ProgressStatus {
+  font-style: italic;
+}
+
+.k12-result {
+  padding: 15px;
+  background: linear-gradient(135deg, #1a3a1a 0%, #0d2d0d 100%);
+  border-radius: 8px;
+  border: 1px solid #22543d;
+  margin-bottom: 15px;
+}
+
+.k12-success {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #4ade80;
+  margin-bottom: 15px;
+}
+
+.success-icon {
+  font-size: 20px;
+}
+
+.credential-box {
+  margin-bottom: 10px;
+}
+
+.credential-box label {
+  display: block;
+  font-size: 10px;
+  color: #a0a0a0;
+  margin-bottom: 5px;
+  font-weight: 600;
+}
+
+.credential-value {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #1a1a1a;
+  padding: 10px;
+  border-radius: 6px;
+  border: 1px solid #3d3d3d;
+}
+
+.credential-value span {
+  flex: 1;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 12px;
+  color: #60a5fa;
+  font-weight: 600;
+  word-break: break-all;
+}
+
+.copy-btn {
+  background: linear-gradient(135deg, #4a4a4a 0%, #3a3a3a 100%);
+  border: none;
+  padding: 6px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s ease;
+}
+
+.copy-btn:hover {
+  background: linear-gradient(135deg, #5a5a5a 0%, #4a4a4a 100%);
+  transform: scale(1.1);
+}
+
+.copy-btn:active {
+  transform: scale(0.95);
+}
+
+.k12-actions {
+  margin-bottom: 15px;
+}
+
+.btn-large {
+  padding: 15px 20px;
+  font-size: 14px;
+}
+
+.k12-history {
+  margin-top: 15px;
+  padding: 10px;
+  background: #1a1a1a;
+  border-radius: 8px;
+  border: 1px solid #3d3d3d;
+}
+
+.k12-history h4 {
+  font-size: 11px;
+  color: #a0a0a0;
+  margin-bottom: 10px;
+  text-align: center;
+}
+
+.history-list {
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+.history-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px;
+  background: #252525;
+  border-radius: 4px;
+  margin-bottom: 5px;
+  font-size: 10px;
+  border: 1px solid #3d3d3d;
+  transition: all 0.2s ease;
+}
+
+.history-item:hover {
+  border-color: #5a5a5a;
+  background: #2a2a2a;
+}
+
+.history-email {
+  color: #60a5fa;
+  font-family: 'Consolas', 'Monaco', monospace;
+  flex: 1;
+}
+
+.history-copy-btn {
+  background: none;
+  border: none;
+  color: #808080;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 5px;
+  transition: color 0.2s ease;
+}
+
+.history-copy-btn:hover {
+  color: #60a5fa;
+}
+
+.no-history {
+  text-align: center;
+  color: #606060;
+  font-size: 10px;
+  padding: 10px;
+}
+
+.k12-info {
+  border-left-color: #3b82f6;
+  background: linear-gradient(135deg, #1a2a3a 0%, #152535 100%);
+}

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Zarif Card Automation",
-  "version": "6.2.2",
+  "version": "6.3.0",
   "description": "Automatically fill payment checkout with generated cards",
   "permissions": [
     "tabs",
@@ -25,7 +25,9 @@
         "https://chatgpt.com/*",
         "https://js.stripe.com/*",
         "https://payments.google.com/*",
-        "https://pay.google.com/*"
+        "https://pay.google.com/*",
+        "https://em.bjedu.tech/*",
+        "https://auth.openai.com/*"
       ],
       "all_frames": true,
       "js": [
