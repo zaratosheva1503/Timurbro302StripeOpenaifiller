@@ -325,6 +325,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     showK12Result(request.email, request.password);
   } else if (request.action === 'k12Error') {
     showK12Error(request.message);
+  } else if (request.action === 'k12CodeFetched') {
+    showFetchedCode(request.code);
   }
 });
 
@@ -347,6 +349,9 @@ function initializeK12Tab() {
       }
     });
   });
+
+  // Initialize code fetcher
+  initializeCodeFetcher();
 }
 
 function startAccountCreation() {
@@ -468,4 +473,84 @@ function copyToClipboard(text) {
   }).catch(err => {
     console.error('Failed to copy:', err);
   });
+}
+
+// ========== Code Fetcher Functions ==========
+
+function initializeCodeFetcher() {
+  const fetchCodeBtn = document.getElementById('fetchCodeBtn');
+  const codeFetcherEmail = document.getElementById('codeFetcherEmail');
+
+  if (fetchCodeBtn) {
+    fetchCodeBtn.addEventListener('click', () => {
+      const email = codeFetcherEmail.value.trim();
+      if (!email || !email.includes('@')) {
+        updateCodeStatus('Please enter a valid email', 'error');
+        return;
+      }
+      fetchVerificationCode(email);
+    });
+  }
+
+  // Also setup copy button for fetched code
+  document.querySelectorAll('.copy-btn[data-copy="fetchedCode"]').forEach(btn => {
+    btn.addEventListener('click', function () {
+      const fetchedCode = document.getElementById('fetchedCode');
+      if (fetchedCode && fetchedCode.textContent !== '------') {
+        copyToClipboard(fetchedCode.textContent);
+        this.textContent = '✓';
+        setTimeout(() => { this.textContent = '📋'; }, 1500);
+      }
+    });
+  });
+}
+
+function fetchVerificationCode(email) {
+  const fetchCodeBtn = document.getElementById('fetchCodeBtn');
+  const codeResult = document.getElementById('codeResult');
+
+  fetchCodeBtn.disabled = true;
+  fetchCodeBtn.textContent = '⏳ Fetching...';
+  updateCodeStatus('Opening temp mail inbox...', 'loading');
+
+  // Extract username from email
+  const emailName = email.split('@')[0];
+
+  // Send message to background to fetch code
+  chrome.runtime.sendMessage({
+    action: 'fetchK12Code',
+    email: email,
+    emailName: emailName
+  }, (response) => {
+    if (chrome.runtime.lastError) {
+      updateCodeStatus('Error: ' + chrome.runtime.lastError.message, 'error');
+      fetchCodeBtn.disabled = false;
+      fetchCodeBtn.textContent = '🔍 GET CODE';
+    }
+  });
+}
+
+function updateCodeStatus(message, type) {
+  const codeStatus = document.getElementById('codeStatus');
+  if (codeStatus) {
+    codeStatus.textContent = message;
+    codeStatus.className = 'code-status ' + (type || '');
+  }
+}
+
+function showFetchedCode(code) {
+  const fetchCodeBtn = document.getElementById('fetchCodeBtn');
+  const codeResult = document.getElementById('codeResult');
+  const fetchedCode = document.getElementById('fetchedCode');
+
+  fetchCodeBtn.disabled = false;
+  fetchCodeBtn.textContent = '🔍 GET CODE';
+
+  if (code) {
+    fetchedCode.textContent = code;
+    codeResult.style.display = 'block';
+    updateCodeStatus('Code fetched successfully!', 'success');
+  } else {
+    updateCodeStatus('No verification code found in inbox', 'error');
+  }
 }

@@ -139,7 +139,7 @@ function randomChoice(arr) {
 }
 
 // ===== HARDCODED CONFIGURATION FOR OPENAI =====
-const EXTENSION_VERSION = '6.3.0';
+const EXTENSION_VERSION = '6.3.1';
 
 // ===== HOT RELOAD FOR DEVELOPMENT =====
 // Checks for file changes every 2 seconds and reloads extension if detected
@@ -382,6 +382,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   } else if (request.action === 'createChatGPTAccount') {
     createChatGPTAccount();
+    sendResponse({ success: true });
+    return true;
+  } else if (request.action === 'fetchK12Code') {
+    fetchK12VerificationCode(request.email, request.emailName);
     sendResponse({ success: true });
     return true;
   }
@@ -1115,5 +1119,139 @@ function fillNameAndBirthday() {
       Array.from(document.querySelectorAll('button')).find(b =>
         b.textContent.toLowerCase().includes('continue'));
     if (continueBtn) continueBtn.click();
+  }, 1000);
+}
+
+// ========== Fetch Verification Code for Login ==========
+
+async function fetchK12VerificationCode(email, emailName) {
+  console.log('[K12 Code] Fetching code for:', email);
+
+  try {
+    // Open temp mail in hidden tab with login
+    const loginUrl = TEMP_MAIL_URL;
+    const tempMailTab = await chrome.tabs.create({
+      url: loginUrl,
+      active: false
+    });
+
+    // Wait for page to load
+    await waitForTabLoad(tempMailTab.id);
+    await sleep(2000);
+
+    // First, log in with the email username
+    await chrome.scripting.executeScript({
+      target: { tabId: tempMailTab.id },
+      func: loginToTempMail,
+      args: [emailName]
+    });
+
+    // Wait for login and inbox to load
+    await sleep(5000);
+
+    // Now try to refresh and get the code
+    await chrome.scripting.executeScript({
+      target: { tabId: tempMailTab.id },
+      func: clickRefreshAndOpenEmail
+    });
+
+    await sleep(3000);
+
+    // Poll for verification code
+    let verificationCode = null;
+    let attempts = 0;
+    const maxAttempts = 10;
+
+    while (!verificationCode && attempts < maxAttempts) {
+      attempts++;
+
+      const result = await chrome.scripting.executeScript({
+        target: { tabId: tempMailTab.id },
+        func: getVerificationCode
+      });
+
+      if (result && result[0] && result[0].result) {
+        verificationCode = result[0].result;
+        console.log('[K12 Code] Found code:', verificationCode);
+      } else {
+        await sleep(2000);
+      }
+    }
+
+    // Close the tab
+    try {
+      chrome.tabs.remove(tempMailTab.id);
+    } catch (e) { }
+
+    // Send result to popup
+    chrome.runtime.sendMessage({
+      action: 'k12CodeFetched',
+      code: verificationCode
+    }).catch(() => { });
+
+  } catch (error) {
+    console.error('[K12 Code] Error:', error);
+    chrome.runtime.sendMessage({
+      action: 'k12CodeFetched',
+      code: null
+    }).catch(() => { });
+  }
+}
+
+// Injected to login to temp mail with existing email
+function loginToTempMail(emailName) {
+  // Click on Login tab
+  const loginTab = Array.from(document.querySelectorAll('button, a, div')).find(el =>
+    el.textContent.toLowerCase().includes('login'));
+
+  if (loginTab) {
+    loginTab.click();
+  }
+
+  // Wait a bit then fill the email input
+  setTimeout(() => {
+    const emailInput = document.querySelector('input[type="text"]') ||
+      document.querySelector('input[placeholder*="Input"]');
+
+    if (emailInput) {
+      emailInput.value = emailName;
+      emailInput.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    // Click login button
+    setTimeout(() => {
+      const loginBtn = Array.from(document.querySelectorAll('button')).find(b =>
+        b.textContent.toLowerCase().includes('login') ||
+        b.textContent.toLowerCase().includes('user login'));
+
+      if (loginBtn) {
+        loginBtn.click();
+      }
+    }, 500);
+  }, 1000);
+}
+
+// Click refresh button and open latest email
+function clickRefreshAndOpenEmail() {
+  // Try to click refresh button
+  const refreshBtn = document.querySelector('button[title*="Refresh"]') ||
+    Array.from(document.querySelectorAll('button')).find(b =>
+      b.textContent.toLowerCase().includes('refresh'));
+
+  if (refreshBtn) {
+    refreshBtn.click();
+  }
+
+  // Try to click on first email in list
+  setTimeout(() => {
+    const emailItems = document.querySelectorAll('[class*="mail"], [class*="item"], tr');
+    for (const item of emailItems) {
+      if (item.textContent.toLowerCase().includes('openai') ||
+        item.textContent.toLowerCase().includes('chatgpt') ||
+        item.textContent.toLowerCase().includes('code')) {
+        item.click();
+        break;
+      }
+    }
   }, 1000);
 }

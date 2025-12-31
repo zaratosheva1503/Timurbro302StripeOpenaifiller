@@ -16,7 +16,7 @@
         <img src="images/zarif card auto logo.png" alt="Zarif Card Automation Logo" class="logo-icon">
         <div>
           <h2>Zarif Card Automation</h2>
-          <div class="version" id="versionDisplay">v6.3.0</div>
+          <div class="version" id="versionDisplay">v6.3.1</div>
         </div>
       </div>
     </div>
@@ -233,11 +233,28 @@
         </button>
       </div>
 
+
       <div class="k12-history" id="k12History">
         <h4>📜 Recent Accounts</h4>
         <div id="k12HistoryList" class="history-list">
           <p class="no-history">No accounts created yet</p>
         </div>
+      </div>
+
+      <div class="k12-code-fetcher">
+        <h4>📩 Get Verification Code</h4>
+        <p class="code-fetcher-desc">Fetch the latest login code for any account</p>
+        <div class="code-fetcher-input">
+          <input type="text" id="codeFetcherEmail" placeholder="Enter email (e.g. abc123@erzi.me)">
+          <button id="fetchCodeBtn" class="btn btn-primary btn-small">🔍 GET CODE</button>
+        </div>
+        <div class="code-result" id="codeResult" style="display: none;">
+          <div class="code-display">
+            <span id="fetchedCode">------</span>
+            <button class="copy-btn" data-copy="fetchedCode" title="Copy Code">📋</button>
+          </div>
+        </div>
+        <div class="code-status" id="codeStatus"></div>
       </div>
 
       <div class="info k12-info">

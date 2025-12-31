@@ -20,8 +20,15 @@ body {
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(-10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .header {
@@ -48,10 +55,13 @@ body {
 }
 
 @keyframes glow {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: scale(1);
     filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.3));
   }
+
   50% {
     transform: scale(1.05);
     filter: drop-shadow(0 0 15px rgba(255, 255, 255, 0.5));
@@ -90,8 +100,15 @@ body {
 }
 
 @keyframes slideUp {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .input-group {
@@ -100,8 +117,15 @@ body {
 }
 
 @keyframes slideIn {
-  from { opacity: 0; transform: translateX(-10px); }
-  to { opacity: 1; transform: translateX(0); }
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 .input-group label {
@@ -235,8 +259,15 @@ body {
 }
 
 @keyframes pulse-loading {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.7; }
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.7;
+  }
 }
 
 .btn {
@@ -448,8 +479,15 @@ body {
 }
 
 @keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-3px); }
+
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-3px);
+  }
 }
 
 .telegram-link span {
@@ -505,8 +543,15 @@ body {
 }
 
 @keyframes shimmer {
-  0%, 100% { opacity: 0.5; }
-  50% { opacity: 1; }
+
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+
+  50% {
+    opacity: 1;
+  }
 }
 
 .tab-content {
@@ -519,8 +564,15 @@ body {
 }
 
 @keyframes tabFadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .precards-container {
@@ -702,8 +754,15 @@ body {
 }
 
 @keyframes progressGlow {
-  0%, 100% { box-shadow: 0 0 10px rgba(59, 130, 246, 0.3); }
-  50% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.6); }
+
+  0%,
+  100% {
+    box-shadow: 0 0 10px rgba(59, 130, 246, 0.3);
+  }
+
+  50% {
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.6);
+  }
 }
 
 .progress-text {
@@ -872,4 +931,94 @@ body {
 .k12-info {
   border-left-color: #3b82f6;
   background: linear-gradient(135deg, #1a2a3a 0%, #152535 100%);
+}
+
+/* Code Fetcher Styles */
+.k12-code-fetcher {
+  margin-top: 15px;
+  padding: 12px;
+  background: linear-gradient(135deg, #1a2a3a 0%, #152535 100%);
+  border-radius: 8px;
+  border: 1px solid #2a4a6a;
+}
+
+.k12-code-fetcher h4 {
+  font-size: 12px;
+  color: #60a5fa;
+  margin-bottom: 5px;
+}
+
+.code-fetcher-desc {
+  font-size: 9px;
+  color: #808080;
+  margin-bottom: 10px;
+}
+
+.code-fetcher-input {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.code-fetcher-input input {
+  flex: 1;
+  padding: 8px;
+  border: 1px solid #3d3d3d;
+  border-radius: 4px;
+  background: #1a1a1a;
+  color: #fff;
+  font-size: 11px;
+}
+
+.code-fetcher-input input:focus {
+  outline: none;
+  border-color: #60a5fa;
+}
+
+.btn-small {
+  padding: 8px 12px;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.code-result {
+  margin-top: 10px;
+}
+
+.code-display {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 15px;
+  background: linear-gradient(135deg, #1a3a1a 0%, #0d2d0d 100%);
+  border-radius: 8px;
+  border: 1px solid #22543d;
+}
+
+.code-display span {
+  font-size: 28px;
+  font-weight: 700;
+  font-family: 'Consolas', 'Monaco', monospace;
+  color: #4ade80;
+  letter-spacing: 8px;
+}
+
+.code-status {
+  margin-top: 8px;
+  text-align: center;
+  font-size: 10px;
+  color: #808080;
+}
+
+.code-status.loading {
+  color: #fbbf24;
+}
+
+.code-status.error {
+  color: #f87171;
+}
+
+.code-status.success {
+  color: #4ade80;
 }
