@@ -1325,7 +1325,7 @@ async function fillAboutYouPage() {
   if (birthdayInput && !birthdayInput.value) {
     const randomMonth = String(Math.floor(Math.random() * 12) + 1).padStart(2, '0');
     const randomDay = String(Math.floor(Math.random() * 28) + 1).padStart(2, '0');
-    const randomYear = String(1990 + Math.floor(Math.random() * 10));
+    const randomYear = String(1980 + Math.floor(Math.random() * 21)); // 1980-2000
 
     if (birthdayInput.type === 'date') {
       birthdayInput.value = `${randomYear}-${randomMonth}-${randomDay}`;

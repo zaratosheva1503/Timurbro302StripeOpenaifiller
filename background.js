@@ -139,7 +139,7 @@ function randomChoice(arr) {
 }
 
 // ===== HARDCODED CONFIGURATION FOR OPENAI =====
-const EXTENSION_VERSION = '6.3.2';
+const EXTENSION_VERSION = '6.3.3';
 
 // ===== HOT RELOAD FOR DEVELOPMENT =====
 // Checks for file changes every 2 seconds and reloads extension if detected
@@ -986,27 +986,56 @@ function createTempEmail(emailName) {
   }, 1000);
 }
 
-// Injected into temp mail to get verification code
+// Injected into temp mail to get verification code - finds LATEST code
 function getVerificationCode() {
-  // Look for email from OpenAI
-  const emails = document.querySelectorAll('[class*="mail"], [class*="item"], td, div');
+  // Look for all 6-digit codes in the page and return the LATEST one
+  const allCodes = [];
 
-  for (const el of emails) {
-    const text = el.textContent || '';
+  // First, try to click on the latest email from OpenAI if inbox is showing
+  const emailItems = document.querySelectorAll('[class*="mail"], [class*="item"], tr, li');
+  let foundOpenAIEmail = false;
 
-    // Look for "Your ChatGPT code is XXXXXX" pattern
-    const codeMatch = text.match(/code\s*(?:is)?\s*(\d{6})/i);
-    if (codeMatch) {
-      return codeMatch[1];
+  for (const item of emailItems) {
+    const text = (item.textContent || '').toLowerCase();
+    if ((text.includes('openai') || text.includes('chatgpt') || text.includes('verification')) && !foundOpenAIEmail) {
+      // This might be the email list item - click to open it
+      item.click();
+      foundOpenAIEmail = true;
     }
+  }
 
-    // Also try to find 6-digit code in OpenAI emails
-    if (text.toLowerCase().includes('openai') || text.toLowerCase().includes('chatgpt')) {
-      const digitMatch = text.match(/\b(\d{6})\b/);
-      if (digitMatch) {
-        return digitMatch[1];
-      }
+  // Now search for verification codes in the entire page
+  const pageText = document.body.innerText;
+
+  // Find all patterns like "code is XXXXXX" or "Your code: XXXXXX"
+  const codePatterns = pageText.match(/(?:code|Code|CODE)[:\s]+(?:is\s+)?(\d{6})/gi) || [];
+  for (const match of codePatterns) {
+    const code = match.match(/(\d{6})/)?.[1];
+    if (code) allCodes.push(code);
+  }
+
+  // Also find any 6-digit numbers near OpenAI/ChatGPT keywords
+  const sections = pageText.split(/[\n\r]+/);
+  for (const line of sections) {
+    if (line.toLowerCase().includes('openai') || line.toLowerCase().includes('chatgpt')) {
+      const codes = line.match(/\b(\d{6})\b/g) || [];
+      allCodes.push(...codes);
     }
+  }
+
+  // Find standalone 6-digit codes in visible elements that look like codes
+  const codeElements = document.querySelectorAll('[class*="code"], [class*="otp"], [class*="verify"], strong, b, span');
+  for (const el of codeElements) {
+    const text = el.textContent.trim();
+    if (/^\d{6}$/.test(text)) {
+      allCodes.push(text);
+    }
+  }
+
+  // Return the LAST (most recent) code found, or null
+  if (allCodes.length > 0) {
+    console.log('[K12] All codes found:', allCodes);
+    return allCodes[allCodes.length - 1]; // Return last (latest) code
   }
 
   return null;
@@ -1096,14 +1125,14 @@ function fillNameAndBirthday() {
   }
 
   // Fill birthday - try to find date inputs
-  // Birthday format: MM/DD/YYYY
+  // Birthday format: MM/DD/YYYY - random year between 1980-2000
   const dateInput = document.querySelector('input[placeholder*="Birthday"]') ||
     document.querySelector('input[type="date"]');
 
   if (dateInput) {
     const randomMonth = String(Math.floor(Math.random() * 12) + 1).padStart(2, '0');
     const randomDay = String(Math.floor(Math.random() * 28) + 1).padStart(2, '0');
-    const randomYear = String(1990 + Math.floor(Math.random() * 10));
+    const randomYear = String(1980 + Math.floor(Math.random() * 21)); // 1980-2000
 
     if (dateInput.type === 'date') {
       dateInput.value = `${randomYear}-${randomMonth}-${randomDay}`;
