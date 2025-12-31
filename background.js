@@ -380,6 +380,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   } else if (request.action === 'generatePrecards') {
     generatePrecardsFromAPI(request.bin, sendResponse, request.method, request.country);
     return true;
+  } else if (request.action === 'createChatGPTAccount') {
+    createChatGPTAccount();
+    sendResponse({ success: true });
+    return true;
   }
 });
 
@@ -723,4 +727,393 @@ async function generatePrecardsFromAPI(bin, callback, method = 'api', country = 
     console.error('[Zarif Precards] Error:', error);
     callback({ success: false, error: error.message || 'Unknown error' });
   }
+}
+
+// ========== K12 AUTO ACCOUNT CREATION ==========
+
+const TEMP_MAIL_URL = 'https://em.bjedu.tech/en/';
+const TEMP_MAIL_DOMAIN = 'erzi.me';
+
+// K12 state management
+let k12State = {
+  email: '',
+  password: '',
+  tempMailTabId: null,
+  chatgptTabId: null,
+  verificationCode: '',
+  step: 0
+};
+
+// Generate unique email name (8 random alphanumeric chars)
+function generateEmailName() {
+  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  for (let i = 0; i < 8; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
+// Generate unique password: Zarif# + 6 random chars (total 12+ chars)
+function generatePassword() {
+  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  let suffix = '';
+  for (let i = 0; i < 6; i++) {
+    suffix += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return 'Zarif#' + suffix;
+}
+
+// Send progress update to popup
+function sendK12Progress(percent, status) {
+  chrome.runtime.sendMessage({
+    action: 'k12Progress',
+    percent: percent,
+    status: status
+  }).catch(() => { }); // Ignore if popup closed
+}
+
+// Send completion to popup
+function sendK12Complete(email, password) {
+  chrome.runtime.sendMessage({
+    action: 'k12Complete',
+    email: email,
+    password: password
+  }).catch(() => { });
+}
+
+// Send error to popup
+function sendK12Error(message) {
+  chrome.runtime.sendMessage({
+    action: 'k12Error',
+    message: message
+  }).catch(() => { });
+}
+
+// Main orchestrator for ChatGPT account creation
+async function createChatGPTAccount() {
+  console.log('[K12] Starting account creation...');
+
+  try {
+    // Generate unique credentials
+    const emailName = generateEmailName();
+    k12State.email = emailName + '@' + TEMP_MAIL_DOMAIN;
+    k12State.password = generatePassword();
+    k12State.step = 0;
+
+    console.log('[K12] Generated email:', k12State.email);
+    console.log('[K12] Generated password:', k12State.password);
+
+    // Step 1: Create temp email (17%)
+    sendK12Progress(17, 'Creating temp email...');
+    const tempMailTab = await chrome.tabs.create({
+      url: TEMP_MAIL_URL,
+      active: false
+    });
+    k12State.tempMailTabId = tempMailTab.id;
+    console.log('[K12] Opened temp mail tab:', tempMailTab.id);
+
+    // Wait for temp mail page to load, then fill form
+    await waitForTabLoad(tempMailTab.id);
+    await sleep(2000); // Wait for page to stabilize
+
+    // Inject script to create email
+    await chrome.scripting.executeScript({
+      target: { tabId: tempMailTab.id },
+      func: createTempEmail,
+      args: [emailName]
+    });
+
+    // Step 2: Open ChatGPT signup (33%)
+    sendK12Progress(33, 'Opening ChatGPT signup...');
+    await sleep(3000);
+
+    const chatgptTab = await chrome.tabs.create({
+      url: 'https://chatgpt.com/',
+      active: false
+    });
+    k12State.chatgptTabId = chatgptTab.id;
+    console.log('[K12] Opened ChatGPT tab:', chatgptTab.id);
+
+    // Wait for ChatGPT to load and start signup
+    await waitForTabLoad(chatgptTab.id);
+    await sleep(3000);
+
+    // Click "Sign up for free" and enter email
+    await chrome.scripting.executeScript({
+      target: { tabId: chatgptTab.id },
+      func: startChatGPTSignup,
+      args: [k12State.email]
+    });
+
+    // Step 3: Wait for password page (50%)
+    sendK12Progress(50, 'Setting password...');
+    await sleep(5000);
+
+    // Enter password on password page
+    await chrome.scripting.executeScript({
+      target: { tabId: chatgptTab.id },
+      func: fillPassword,
+      args: [k12State.password]
+    });
+
+    // Step 4: Wait for verification code (67%)
+    sendK12Progress(67, 'Waiting for verification code...');
+    await sleep(5000);
+
+    // Poll temp mail for verification code
+    let verificationCode = '';
+    let pollAttempts = 0;
+    const maxPollAttempts = 30; // 90 seconds max
+
+    while (!verificationCode && pollAttempts < maxPollAttempts) {
+      await sleep(3000);
+      pollAttempts++;
+
+      const result = await chrome.scripting.executeScript({
+        target: { tabId: tempMailTab.id },
+        func: getVerificationCode
+      });
+
+      if (result && result[0] && result[0].result) {
+        verificationCode = result[0].result;
+        console.log('[K12] Got verification code:', verificationCode);
+      }
+
+      sendK12Progress(67 + Math.floor(pollAttempts / 2), 'Checking inbox... (' + pollAttempts + ')');
+    }
+
+    if (!verificationCode) {
+      throw new Error('Verification code not received after 90 seconds');
+    }
+
+    // Step 5: Enter verification code (83%)
+    sendK12Progress(83, 'Entering verification code...');
+    k12State.verificationCode = verificationCode;
+
+    await chrome.scripting.executeScript({
+      target: { tabId: chatgptTab.id },
+      func: fillVerificationCode,
+      args: [verificationCode]
+    });
+
+    // Step 6: Fill name and birthday (95%)
+    sendK12Progress(95, 'Completing profile...');
+    await sleep(5000);
+
+    await chrome.scripting.executeScript({
+      target: { tabId: chatgptTab.id },
+      func: fillNameAndBirthday
+    });
+
+    // Done! (100%)
+    sendK12Progress(100, 'Account created!');
+    await sleep(2000);
+
+    // Close hidden tabs
+    try {
+      if (k12State.tempMailTabId) chrome.tabs.remove(k12State.tempMailTabId);
+      if (k12State.chatgptTabId) chrome.tabs.remove(k12State.chatgptTabId);
+    } catch (e) {
+      console.log('[K12] Tab cleanup error:', e);
+    }
+
+    // Send success to popup
+    sendK12Complete(k12State.email, k12State.password);
+    console.log('[K12] Account creation completed successfully!');
+
+  } catch (error) {
+    console.error('[K12] Error:', error);
+    sendK12Error(error.message);
+
+    // Cleanup tabs on error
+    try {
+      if (k12State.tempMailTabId) chrome.tabs.remove(k12State.tempMailTabId);
+      if (k12State.chatgptTabId) chrome.tabs.remove(k12State.chatgptTabId);
+    } catch (e) { }
+  }
+}
+
+// Wait for tab to finish loading
+function waitForTabLoad(tabId) {
+  return new Promise((resolve) => {
+    const listener = (updatedTabId, changeInfo) => {
+      if (updatedTabId === tabId && changeInfo.status === 'complete') {
+        chrome.tabs.onUpdated.removeListener(listener);
+        resolve();
+      }
+    };
+    chrome.tabs.onUpdated.addListener(listener);
+
+    // Timeout after 30 seconds
+    setTimeout(() => {
+      chrome.tabs.onUpdated.removeListener(listener);
+      resolve();
+    }, 30000);
+  });
+}
+
+// Helper sleep function
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// === Functions to be injected into pages ===
+
+// Injected into temp mail page to create email
+function createTempEmail(emailName) {
+  const emailInput = document.querySelector('input[type="text"]') ||
+    document.querySelector('input[placeholder*="Input"]') ||
+    document.querySelector('input[class*="input"]');
+
+  if (emailInput) {
+    emailInput.value = emailName;
+    emailInput.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  // Click create button
+  setTimeout(() => {
+    const createBtn = document.querySelector('button[class*="create"]') ||
+      Array.from(document.querySelectorAll('button')).find(b =>
+        b.textContent.toLowerCase().includes('create'));
+    if (createBtn) {
+      createBtn.click();
+    }
+  }, 1000);
+}
+
+// Injected into temp mail to get verification code
+function getVerificationCode() {
+  // Look for email from OpenAI
+  const emails = document.querySelectorAll('[class*="mail"], [class*="item"], td, div');
+
+  for (const el of emails) {
+    const text = el.textContent || '';
+
+    // Look for "Your ChatGPT code is XXXXXX" pattern
+    const codeMatch = text.match(/code\s*(?:is)?\s*(\d{6})/i);
+    if (codeMatch) {
+      return codeMatch[1];
+    }
+
+    // Also try to find 6-digit code in OpenAI emails
+    if (text.toLowerCase().includes('openai') || text.toLowerCase().includes('chatgpt')) {
+      const digitMatch = text.match(/\b(\d{6})\b/);
+      if (digitMatch) {
+        return digitMatch[1];
+      }
+    }
+  }
+
+  return null;
+}
+
+// Injected into ChatGPT to start signup
+function startChatGPTSignup(email) {
+  // Click sign up button
+  const signupBtn = document.querySelector('[data-testid="login-button"]') ||
+    Array.from(document.querySelectorAll('a, button')).find(b =>
+      b.textContent.toLowerCase().includes('sign up'));
+
+  if (signupBtn) {
+    signupBtn.click();
+  }
+
+  // Wait for email input
+  setTimeout(() => {
+    const emailInput = document.querySelector('input[type="email"]') ||
+      document.querySelector('input[name="email"]') ||
+      document.querySelector('input[autocomplete="email"]');
+
+    if (emailInput) {
+      emailInput.value = email;
+      emailInput.dispatchEvent(new Event('input', { bubbles: true }));
+
+      // Click continue
+      setTimeout(() => {
+        const continueBtn = document.querySelector('button[type="submit"]') ||
+          Array.from(document.querySelectorAll('button')).find(b =>
+            b.textContent.toLowerCase().includes('continue'));
+        if (continueBtn) continueBtn.click();
+      }, 500);
+    }
+  }, 3000);
+}
+
+// Injected to fill password
+function fillPassword(password) {
+  const passwordInput = document.querySelector('input[type="password"]') ||
+    document.querySelector('input[name="password"]');
+
+  if (passwordInput) {
+    passwordInput.value = password;
+    passwordInput.dispatchEvent(new Event('input', { bubbles: true }));
+
+    // Click continue
+    setTimeout(() => {
+      const continueBtn = document.querySelector('button[type="submit"]') ||
+        Array.from(document.querySelectorAll('button')).find(b =>
+          b.textContent.toLowerCase().includes('continue'));
+      if (continueBtn) continueBtn.click();
+    }, 500);
+  }
+}
+
+// Injected to fill verification code
+function fillVerificationCode(code) {
+  const codeInput = document.querySelector('input[name="code"]') ||
+    document.querySelector('input[type="text"]') ||
+    document.querySelector('input[autocomplete="one-time-code"]');
+
+  if (codeInput) {
+    codeInput.value = code;
+    codeInput.dispatchEvent(new Event('input', { bubbles: true }));
+
+    // Click continue
+    setTimeout(() => {
+      const continueBtn = document.querySelector('button[type="submit"]') ||
+        Array.from(document.querySelectorAll('button')).find(b =>
+          b.textContent.toLowerCase().includes('continue'));
+      if (continueBtn) continueBtn.click();
+    }, 500);
+  }
+}
+
+// Injected to fill name and birthday
+function fillNameAndBirthday() {
+  // Fill name
+  const nameInput = document.querySelector('input[name="name"]') ||
+    document.querySelector('input[placeholder*="name"]') ||
+    document.querySelector('input[type="text"]');
+
+  if (nameInput) {
+    nameInput.value = 'User' + Math.floor(Math.random() * 10000);
+    nameInput.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  // Fill birthday - try to find date inputs
+  // Birthday format: MM/DD/YYYY
+  const dateInput = document.querySelector('input[placeholder*="Birthday"]') ||
+    document.querySelector('input[type="date"]');
+
+  if (dateInput) {
+    const randomMonth = String(Math.floor(Math.random() * 12) + 1).padStart(2, '0');
+    const randomDay = String(Math.floor(Math.random() * 28) + 1).padStart(2, '0');
+    const randomYear = String(1990 + Math.floor(Math.random() * 10));
+
+    if (dateInput.type === 'date') {
+      dateInput.value = `${randomYear}-${randomMonth}-${randomDay}`;
+    } else {
+      dateInput.value = `${randomMonth}/${randomDay}/${randomYear}`;
+    }
+    dateInput.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  // Click continue
+  setTimeout(() => {
+    const continueBtn = document.querySelector('button[type="submit"]') ||
+      Array.from(document.querySelectorAll('button')).find(b =>
+        b.textContent.toLowerCase().includes('continue'));
+    if (continueBtn) continueBtn.click();
+  }, 1000);
 }
