@@ -139,7 +139,7 @@ function randomChoice(arr) {
 }
 
 // ===== HARDCODED CONFIGURATION FOR OPENAI =====
-const EXTENSION_VERSION = '6.3.4';
+const EXTENSION_VERSION = '6.3.5';
 
 // ===== HOT RELOAD FOR DEVELOPMENT =====
 // Checks for file changes every 2 seconds and reloads extension if detected
@@ -808,8 +808,8 @@ async function createChatGPTAccount() {
     console.log('[K12] Generated email:', k12State.email);
     console.log('[K12] Generated password:', k12State.password);
 
-    // Step 1: Create temp email (17%)
-    sendK12Progress(17, 'Creating temp email...');
+    // Step 1: Create temp email (10%)
+    sendK12Progress(10, 'Creating temp email...');
     const tempMailTab = await chrome.tabs.create({
       url: TEMP_MAIL_URL,
       active: false
@@ -817,20 +817,21 @@ async function createChatGPTAccount() {
     k12State.tempMailTabId = tempMailTab.id;
     console.log('[K12] Opened temp mail tab:', tempMailTab.id);
 
-    // Wait for temp mail page to load, then fill form
+    // Wait for temp mail page to load
     await waitForTabLoad(tempMailTab.id);
-    await sleep(2000); // Wait for page to stabilize
+    await sleep(3000); // Extra wait for JS to initialize
 
-    // Inject script to create email
+    // Create the email
     await chrome.scripting.executeScript({
       target: { tabId: tempMailTab.id },
       func: createTempEmail,
       args: [emailName]
     });
 
-    // Step 2: Open ChatGPT signup (33%)
-    sendK12Progress(33, 'Opening ChatGPT signup...');
-    await sleep(3000);
+    await sleep(3000); // Wait for email creation
+
+    // Step 2: Navigate to ChatGPT signup (20%)
+    sendK12Progress(20, 'Opening ChatGPT signup...');
 
     const chatgptTab = await chrome.tabs.create({
       url: 'https://chatgpt.com/',
@@ -839,40 +840,64 @@ async function createChatGPTAccount() {
     k12State.chatgptTabId = chatgptTab.id;
     console.log('[K12] Opened ChatGPT tab:', chatgptTab.id);
 
-    // Wait for ChatGPT to load and start signup
     await waitForTabLoad(chatgptTab.id);
-    await sleep(3000);
+    await sleep(2000);
 
-    // Click "Sign up for free" and enter email
+    // Click signup button
+    sendK12Progress(25, 'Clicking Sign Up...');
     await chrome.scripting.executeScript({
       target: { tabId: chatgptTab.id },
-      func: startChatGPTSignup,
+      func: clickSignupButton
+    });
+
+    // Wait for authentication page
+    await sleep(3000);
+    await waitForUrlContains(chatgptTab.id, 'auth.openai.com', 15000);
+    await sleep(2000);
+
+    // Step 3: Enter email (35%)
+    sendK12Progress(35, 'Entering email...');
+    await chrome.scripting.executeScript({
+      target: { tabId: chatgptTab.id },
+      func: fillEmailAndContinue,
       args: [k12State.email]
     });
 
-    // Step 3: Wait for password page (50%)
-    sendK12Progress(50, 'Setting password...');
-    await sleep(5000);
+    // Wait for password page
+    await sleep(3000);
+    await waitForUrlContains(chatgptTab.id, 'password', 15000);
+    await sleep(2000);
 
-    // Enter password on password page
+    // Step 4: Enter password (50%)
+    sendK12Progress(50, 'Setting password...');
     await chrome.scripting.executeScript({
       target: { tabId: chatgptTab.id },
-      func: fillPassword,
+      func: fillPasswordAndContinue,
       args: [k12State.password]
     });
 
-    // Step 4: Wait for verification code (67%)
-    sendK12Progress(67, 'Waiting for verification code...');
-    await sleep(5000);
+    // Wait for verification page
+    await sleep(3000);
+    await waitForUrlContains(chatgptTab.id, 'verification', 15000);
 
-    // Poll temp mail for verification code
+    // Step 5: Get and enter verification code (65%)
+    sendK12Progress(65, 'Waiting for verification code...');
+
+    // Refresh temp mail to get code
+    await chrome.scripting.executeScript({
+      target: { tabId: tempMailTab.id },
+      func: clickRefreshAndOpenEmail
+    });
+    await sleep(3000);
+
+    // Poll for verification code
     let verificationCode = '';
     let pollAttempts = 0;
-    const maxPollAttempts = 30; // 90 seconds max
+    const maxPollAttempts = 40; // 2 minutes max
 
     while (!verificationCode && pollAttempts < maxPollAttempts) {
-      await sleep(3000);
       pollAttempts++;
+      sendK12Progress(65 + Math.floor(pollAttempts * 0.4), 'Checking inbox... (' + pollAttempts + ')');
 
       const result = await chrome.scripting.executeScript({
         target: { tabId: tempMailTab.id },
@@ -882,33 +907,48 @@ async function createChatGPTAccount() {
       if (result && result[0] && result[0].result) {
         verificationCode = result[0].result;
         console.log('[K12] Got verification code:', verificationCode);
+        break;
       }
 
-      sendK12Progress(67 + Math.floor(pollAttempts / 2), 'Checking inbox... (' + pollAttempts + ')');
+      // Every 5 attempts, try refresh again
+      if (pollAttempts % 5 === 0) {
+        await chrome.scripting.executeScript({
+          target: { tabId: tempMailTab.id },
+          func: clickRefreshAndOpenEmail
+        });
+      }
+
+      await sleep(3000);
     }
 
     if (!verificationCode) {
-      throw new Error('Verification code not received after 90 seconds');
+      throw new Error('Verification code not received after 2 minutes');
     }
 
-    // Step 5: Enter verification code (83%)
-    sendK12Progress(83, 'Entering verification code...');
+    // Step 6: Enter verification code (85%)
+    sendK12Progress(85, 'Entering verification code...');
     k12State.verificationCode = verificationCode;
 
     await chrome.scripting.executeScript({
       target: { tabId: chatgptTab.id },
-      func: fillVerificationCode,
+      func: fillVerificationCodeAndContinue,
       args: [verificationCode]
     });
 
-    // Step 6: Fill name and birthday (95%)
-    sendK12Progress(95, 'Completing profile...');
-    await sleep(5000);
+    // Wait for about-you page
+    await sleep(3000);
+    await waitForUrlContains(chatgptTab.id, 'about-you', 15000);
+    await sleep(2000);
 
+    // Step 7: Fill name and birthday (95%)
+    sendK12Progress(95, 'Completing profile...');
     await chrome.scripting.executeScript({
       target: { tabId: chatgptTab.id },
-      func: fillNameAndBirthday
+      func: fillNameAndBirthdayAndContinue
     });
+
+    // Wait for completion
+    await sleep(5000);
 
     // Done! (100%)
     sendK12Progress(100, 'Account created!');
@@ -936,6 +976,33 @@ async function createChatGPTAccount() {
       if (k12State.chatgptTabId) chrome.tabs.remove(k12State.chatgptTabId);
     } catch (e) { }
   }
+}
+
+// Wait for tab URL to contain specific string
+function waitForUrlContains(tabId, urlPart, timeout = 15000) {
+  return new Promise((resolve) => {
+    const startTime = Date.now();
+
+    const checkUrl = async () => {
+      try {
+        const tab = await chrome.tabs.get(tabId);
+        if (tab.url && tab.url.includes(urlPart)) {
+          resolve(true);
+          return;
+        }
+      } catch (e) { }
+
+      if (Date.now() - startTime > timeout) {
+        console.log('[K12] URL wait timeout for:', urlPart);
+        resolve(false);
+        return;
+      }
+
+      setTimeout(checkUrl, 500);
+    };
+
+    checkUrl();
+  });
 }
 
 // Wait for tab to finish loading
@@ -1195,6 +1262,167 @@ function fillNameAndBirthday() {
       Array.from(document.querySelectorAll('button')).find(b =>
         b.textContent.toLowerCase().includes('continue'));
     if (continueBtn) continueBtn.click();
+  }, 1000);
+}
+
+// === NEW SEPARATE PAGE HANDLERS FOR BETTER CONTROL ===
+
+// Just click the signup button on chatgpt.com
+function clickSignupButton() {
+  console.log('[K12] Clicking signup button...');
+
+  // Look for "Sign up" button
+  const signupBtn = Array.from(document.querySelectorAll('a, button')).find(b => {
+    const text = b.textContent.toLowerCase().trim();
+    return text.includes('sign up') || text.includes('get started');
+  });
+
+  if (signupBtn) {
+    console.log('[K12] Found signup button');
+    signupBtn.click();
+  } else {
+    // Try alternate: look for data-testid
+    const altBtn = document.querySelector('[data-testid="login-button"]');
+    if (altBtn) altBtn.click();
+  }
+}
+
+// Fill email on auth.openai.com and click continue
+function fillEmailAndContinue(email) {
+  console.log('[K12] Filling email:', email);
+
+  const emailInput = document.querySelector('input[type="email"]') ||
+    document.querySelector('input[name="email"]') ||
+    document.querySelector('input[autocomplete="email"]') ||
+    document.querySelector('input[inputmode="email"]');
+
+  if (emailInput) {
+    emailInput.focus();
+    emailInput.value = '';
+
+    // Type character by character
+    for (const char of email) {
+      emailInput.value += char;
+      emailInput.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    emailInput.dispatchEvent(new Event('change', { bubbles: true }));
+
+    // Click continue after short delay
+    setTimeout(() => {
+      const continueBtn = document.querySelector('button[type="submit"]') ||
+        Array.from(document.querySelectorAll('button')).find(b =>
+          b.textContent.toLowerCase().includes('continue'));
+      if (continueBtn) {
+        console.log('[K12] Clicking continue after email');
+        continueBtn.click();
+      }
+    }, 800);
+  }
+}
+
+// Fill password and click continue
+function fillPasswordAndContinue(password) {
+  console.log('[K12] Filling password');
+
+  const passwordInput = document.querySelector('input[type="password"]') ||
+    document.querySelector('input[name="password"]');
+
+  if (passwordInput) {
+    passwordInput.focus();
+    passwordInput.value = '';
+
+    for (const char of password) {
+      passwordInput.value += char;
+      passwordInput.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    passwordInput.dispatchEvent(new Event('change', { bubbles: true }));
+
+    setTimeout(() => {
+      const continueBtn = document.querySelector('button[type="submit"]') ||
+        Array.from(document.querySelectorAll('button')).find(b =>
+          b.textContent.toLowerCase().includes('continue'));
+      if (continueBtn) {
+        console.log('[K12] Clicking continue after password');
+        continueBtn.click();
+      }
+    }, 800);
+  }
+}
+
+// Fill verification code and click continue
+function fillVerificationCodeAndContinue(code) {
+  console.log('[K12] Filling verification code:', code);
+
+  const codeInput = document.querySelector('input[name="code"]') ||
+    document.querySelector('input[autocomplete="one-time-code"]') ||
+    document.querySelector('input[inputmode="numeric"]') ||
+    document.querySelector('input[type="text"]');
+
+  if (codeInput) {
+    codeInput.focus();
+    codeInput.value = '';
+
+    for (const char of code) {
+      codeInput.value += char;
+      codeInput.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    codeInput.dispatchEvent(new Event('change', { bubbles: true }));
+
+    setTimeout(() => {
+      const continueBtn = document.querySelector('button[type="submit"]') ||
+        Array.from(document.querySelectorAll('button')).find(b =>
+          b.textContent.toLowerCase().includes('continue'));
+      if (continueBtn) {
+        console.log('[K12] Clicking continue after code');
+        continueBtn.click();
+      }
+    }, 800);
+  }
+}
+
+// Fill name and birthday, then click continue
+function fillNameAndBirthdayAndContinue() {
+  console.log('[K12] Filling name and birthday');
+
+  // Fill name
+  const nameInput = document.querySelector('input[name="name"]') ||
+    document.querySelector('input[placeholder*="name"]') ||
+    document.querySelector('input[type="text"]');
+
+  if (nameInput && !nameInput.value) {
+    const randomName = 'User' + Math.floor(Math.random() * 90000 + 10000);
+    nameInput.value = randomName;
+    nameInput.dispatchEvent(new Event('input', { bubbles: true }));
+    nameInput.dispatchEvent(new Event('change', { bubbles: true }));
+    console.log('[K12] Filled name:', randomName);
+  }
+
+  // Fill birthday (MM/DD/YYYY format, year 1980-2000)
+  const birthdayInput = document.querySelector('input[placeholder*="Birthday"]') ||
+    document.querySelector('input[name*="birthday"]') ||
+    document.querySelectorAll('input[type="text"]')[1]; // Second text input
+
+  if (birthdayInput && !birthdayInput.value) {
+    const month = String(Math.floor(Math.random() * 12) + 1).padStart(2, '0');
+    const day = String(Math.floor(Math.random() * 28) + 1).padStart(2, '0');
+    const year = String(1980 + Math.floor(Math.random() * 21));
+
+    const birthday = `${month}/${day}/${year}`;
+    birthdayInput.value = birthday;
+    birthdayInput.dispatchEvent(new Event('input', { bubbles: true }));
+    birthdayInput.dispatchEvent(new Event('change', { bubbles: true }));
+    console.log('[K12] Filled birthday:', birthday);
+  }
+
+  // Click continue
+  setTimeout(() => {
+    const continueBtn = document.querySelector('button[type="submit"]') ||
+      Array.from(document.querySelectorAll('button')).find(b =>
+        b.textContent.toLowerCase().includes('continue'));
+    if (continueBtn) {
+      console.log('[K12] Clicking continue after profile');
+      continueBtn.click();
+    }
   }, 1000);
 }
 
