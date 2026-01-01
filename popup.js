@@ -1,4 +1,4 @@
-const DEFAULT_BIN = '625814260257xxxx';
+const DEFAULT_BIN = '625814260209xxxx';
 const INDIA_DEFAULT_BIN = '551827894390xxxx';
 
 let binInput, generateBtn, clearBtn, statusDiv, savedBinDiv, savedBinValue, generateMethodSelect, countrySelect, expiryMonth, expiryYear;
@@ -75,8 +75,8 @@ function updateDefaultsForCountry() {
     console.log('Setting South Korea defaults');
     binInput.value = DEFAULT_BIN;
     savedBinValue.textContent = DEFAULT_BIN;
-    if (expiryMonth) expiryMonth.value = '05';
-    if (expiryYear) expiryYear.value = '2028';
+    if (expiryMonth) expiryMonth.value = '04';
+    if (expiryYear) expiryYear.value = '2027';
   }
 }
 

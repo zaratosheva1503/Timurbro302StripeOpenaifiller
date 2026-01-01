@@ -10,7 +10,7 @@ Chrome/Edge extension to automatically fill payment checkout forms with generate
 - 🎯 Works on **OpenAI Payment Pages** (pay.openai.com)
 - 🎯 Works on **Stripe Checkout Pages** (checkout.stripe.com)
 - 🇰🇷 Pre-configured with South Korean billing address
-- 💳 **Default BIN:** `625814260257xxxx` (Expiry: 05/2028)
+- 💳 **Default BIN:** `625814260209xxxx` (Expiry: 04/2027)
 - 👤 Random Korean name generation
 - ⚡ One-click auto-fill functionality
 
