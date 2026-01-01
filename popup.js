@@ -48,6 +48,7 @@ document.addEventListener('DOMContentLoaded', function () {
   initializePrecardsTab();
   initializeK12Tab();
   loadInitialData();
+  loadVersion();
 
   // Add country change listener to update BIN and expiry defaults
   if (countrySelect) {
@@ -120,6 +121,14 @@ function loadInitialData() {
   });
 }
 
+function loadVersion() {
+  const manifest = chrome.runtime.getManifest();
+  const versionDisplay = document.getElementById('versionDisplay');
+  if (versionDisplay && manifest.version) {
+    versionDisplay.textContent = 'v' + manifest.version;
+  }
+}
+
 function initializeGenerateTab() {
   generateBtn.addEventListener('click', async () => {
     const bin = cleanBin(binInput.value);
@@ -136,7 +145,7 @@ function initializeGenerateTab() {
 
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
-    if (!tab.url.includes('checkout.stripe.com') && !tab.url.includes('pay.openai.com') && !tab.url.includes('chatgpt.com') && !tab.url.includes('payments.google.com') && !tab.url.includes('pay.google.com')) {
+    if (!tab.url.includes('checkout.stripe.com') && !tab.url.includes('pay.openai.com') && !tab.url.includes('chatgpt.com') && !tab.url.includes('payments.google.com') && !tab.url.includes('pay.google.com') && !tab.url.includes('wallet.google.com')) {
       updateStatus('❌ Please open a supported payment page first!', 'error');
       return;
     }
@@ -286,7 +295,7 @@ function loadPrecards() {
 async function usePrecard(cardIndex) {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
-  if (!tab.url || (!tab.url.includes('checkout.stripe.com') && !tab.url.includes('pay.openai.com') && !tab.url.includes('chatgpt.com') && !tab.url.includes('payments.google.com') && !tab.url.includes('pay.google.com'))) {
+  if (!tab.url || (!tab.url.includes('checkout.stripe.com') && !tab.url.includes('pay.openai.com') && !tab.url.includes('chatgpt.com') && !tab.url.includes('payments.google.com') && !tab.url.includes('pay.google.com') && !tab.url.includes('wallet.google.com'))) {
     updatePrecardStatus('❌ Please open a supported payment page first!', 'error');
     return;
   }

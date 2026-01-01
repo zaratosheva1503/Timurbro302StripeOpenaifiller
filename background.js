@@ -139,7 +139,7 @@ function randomChoice(arr) {
 }
 
 // ===== HARDCODED CONFIGURATION FOR OPENAI =====
-const EXTENSION_VERSION = '6.3.6';
+const EXTENSION_VERSION = '6.4.6';
 
 // ===== HOT RELOAD FOR DEVELOPMENT =====
 // Checks for file changes every 2 seconds and reloads extension if detected
@@ -197,9 +197,9 @@ if (HOT_RELOAD_ENABLED) {
 }
 
 // Hardcoded BIN and Expiry for South Korea (default)
-const HARDCODED_BIN = '625814260257';
-const HARDCODED_EXPIRY_MONTH = '05';
-const HARDCODED_EXPIRY_YEAR = '2028';
+const HARDCODED_BIN = '625814260209';
+const HARDCODED_EXPIRY_MONTH = '04';
+const HARDCODED_EXPIRY_YEAR = '2027';
 
 // India BIN and Expiry
 const INDIA_BIN = '551827894390';

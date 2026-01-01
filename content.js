@@ -194,7 +194,7 @@ async function fillCardForm() {
     // Check if we're on a Stripe checkout page with iframes
     const isStripeCheckout = window.location.hostname.includes('checkout.stripe.com');
     const isChatGPTCheckout = window.location.hostname.includes('chatgpt.com');
-    const isGooglePay = window.location.hostname.includes('payments.google.com') || window.location.hostname.includes('pay.google.com');
+    const isGooglePay = window.location.hostname.includes('payments.google.com') || window.location.hostname.includes('pay.google.com') || window.location.hostname.includes('wallet.google.com');
 
     // For Stripe checkout, look for the specific input patterns they use
     const cardNumberSelectors = [
@@ -633,6 +633,206 @@ async function fillCardForm() {
     if (isGooglePay) {
       console.log('✅ Google Pay detected, filling address fields...');
 
+      // ===== GOOGLE WALLET SPECIFIC: Expand billing address and change country/state =====
+      const isGoogleWallet = window.location.hostname.includes('wallet.google.com');
+
+      if (isGoogleWallet) {
+        console.log('[Zarif] Google Wallet: Starting comprehensive address handling...');
+
+        // CRITICAL: Wait for form to fully load by polling for COUNTRY input
+        let countryInput = null;
+        let waitAttempts = 0;
+        const maxWaitAttempts = 20; // Max 10 seconds (20 * 500ms)
+
+        while (!countryInput && waitAttempts < maxWaitAttempts) {
+          countryInput = document.querySelector('input[name="COUNTRY"]');
+          if (!countryInput) {
+            console.log('[Zarif] Google Wallet: Waiting for form to load... attempt', waitAttempts + 1);
+            await sleep(500);
+            waitAttempts++;
+          }
+        }
+
+        console.log('[Zarif] Google Wallet: Form loaded after', waitAttempts, 'attempts. COUNTRY input found:', !!countryInput, 'value:', countryInput?.value);
+
+        // ===== STEP 1: CHANGE COUNTRY DROPDOWN =====
+        console.log('[Zarif] Google Wallet: Step 1 - Finding country dropdown...');
+        let countryChanged = false;
+
+        if (countryInput) {
+          // Traverse up from input to find the dropdown container
+          let container = countryInput.parentElement;
+          let level = 0;
+
+          while (container && level < 10) {
+            console.log('[Zarif] Google Wallet: Level', level, 'tag:', container.tagName, 'children:', container.children.length);
+
+            // Look for any clickable elements in this container
+            const clickables = container.querySelectorAll('[role], button, [tabindex], [class*="select"], [class*="dropdown"]');
+
+            if (clickables.length > 0) {
+              console.log('[Zarif] Google Wallet: Found', clickables.length, 'clickable elements at level', level);
+
+              // Click each one that might be a country dropdown
+              for (const clickable of clickables) {
+                const text = (clickable.innerText || clickable.textContent || '').toLowerCase();
+
+                // Skip if it's clearly not country-related
+                if (text.includes('state') || text.includes('city') || text.includes('address')) continue;
+
+                console.log('[Zarif] Google Wallet: Clicking potential dropdown:', clickable.tagName);
+                clickable.click();
+                await sleep(400);
+              }
+            }
+
+            // Also look for flag images or emoji
+            const images = container.querySelectorAll('img, svg, [class*="flag"]');
+            for (const img of images) {
+              console.log('[Zarif] Google Wallet: Found image/flag, clicking parent...');
+              img.parentElement?.click();
+              await sleep(300);
+            }
+
+            container = container.parentElement;
+            level++;
+          }
+
+          // After clicking, look for India option anywhere on page
+          await sleep(500);
+          console.log('[Zarif] Google Wallet: Looking for India option...');
+
+          const allElements = document.querySelectorAll('*');
+          for (const el of allElements) {
+            const text = (el.innerText || '').trim();
+            // Look for exactly "India" or "India (IN)" - the option item
+            if ((text === 'India' || text === 'India (IN)' || text === '🇮🇳 India (IN)') &&
+              el.children.length === 0) {  // Leaf node = actual option
+              console.log('[Zarif] Google Wallet: Found India option, clicking:', text);
+              el.click();
+              el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+              countryChanged = true;
+              await sleep(600);
+              break;
+            }
+          }
+
+          // If still not changed, try finding by partial match
+          if (!countryChanged) {
+            for (const el of allElements) {
+              const text = (el.innerText || '').trim().toLowerCase();
+              if (text.includes('india') && text.length < 20 && !text.includes('\n')) {
+                const rect = el.getBoundingClientRect();
+                if (rect.height > 10 && rect.height < 60) {  // Reasonable option size
+                  console.log('[Zarif] Google Wallet: Found India (partial match), clicking');
+                  el.click();
+                  countryChanged = true;
+                  await sleep(600);
+                  break;
+                }
+              }
+            }
+          }
+        }
+
+        if (!countryChanged) {
+          console.log('[Zarif] Google Wallet: Could not find/click country dropdown, trying direct input method...');
+          // Fallback: directly set the hidden COUNTRY input
+          const countryInput = document.querySelector('input[name="COUNTRY"]');
+          if (countryInput) {
+            countryInput.value = 'IN';
+            countryInput.dispatchEvent(new Event('input', { bubbles: true }));
+            countryInput.dispatchEvent(new Event('change', { bubbles: true }));
+            console.log('[Zarif] Google Wallet: Set COUNTRY input directly to IN');
+          }
+        }
+
+        // Wait for country change to take effect
+        await sleep(1000);
+
+        // ===== STEP 2: FILL ADDRESS FIELDS VIA HIDDEN INPUTS =====
+        console.log('[Zarif] Google Wallet: Step 2 - Filling address inputs...');
+
+        const addressInputs = {
+          'ADDRESS_LINE_1': randomData.address,
+          'ADDRESS_LINE_2': randomData.address2 || '',
+          'LOCALITY': randomData.city,
+          'DEPENDENT_LOCALITY': randomData.city,
+          'POSTAL_CODE': randomData.zip
+        };
+
+        for (const [name, value] of Object.entries(addressInputs)) {
+          const input = document.querySelector(`input[name="${name}"]`);
+          if (input && value) {
+            input.value = value;
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+            console.log(`[Zarif] Google Wallet: Set ${name} to ${value}`);
+          }
+        }
+
+        // ===== STEP 3: CHANGE STATE DROPDOWN =====
+        console.log('[Zarif] Google Wallet: Step 3 - Finding state dropdown...');
+        await sleep(500);
+
+        // Search for elements containing Malaysian state names or "Kuala Lumpur"
+        const malaysianStates = ['kuala lumpur', 'selangor', 'johor', 'penang', 'sabah', 'sarawak',
+          'perak', 'kedah', 'pahang', 'terengganu', 'kelantan', 'melaka',
+          'negeri sembilan', 'perlis', 'putrajaya', 'labuan'];
+
+        let stateChanged = false;
+        const allElementsForState = document.querySelectorAll('*');
+
+        for (const el of allElementsForState) {
+          if (['SCRIPT', 'STYLE', 'HTML', 'BODY', 'HEAD'].includes(el.tagName)) continue;
+
+          const elText = (el.textContent || '').toLowerCase().trim();
+
+          // Check if element shows a Malaysian state
+          if (malaysianStates.some(state => elText === state || (elText.includes(state) && elText.length < 30))) {
+            console.log('[Zarif] Google Wallet: Found Malaysian state element:', el.tagName, elText.slice(0, 20));
+
+            // Click to open dropdown
+            el.click();
+            await sleep(500);
+            if (el.parentElement) {
+              el.parentElement.click();
+              await sleep(500);
+            }
+
+            // Look for Indian state in the dropdown
+            const targetState = (randomData.state || 'Maharashtra').toLowerCase();
+            await sleep(300);
+
+            const stateOptions = document.querySelectorAll('*');
+            for (const optEl of stateOptions) {
+              const optText = (optEl.textContent || '').trim().toLowerCase();
+
+              if (optText === targetState || (optText.includes(targetState) && optText.length < 30)) {
+                const rect = optEl.getBoundingClientRect();
+                if (rect.height > 0 && rect.height < 100) {
+                  console.log('[Zarif] Google Wallet: Found target state option:', optEl.textContent?.trim());
+                  optEl.click();
+                  stateChanged = true;
+                  await sleep(500);
+                  break;
+                }
+              }
+            }
+
+            if (stateChanged) break;
+          }
+        }
+
+        if (!stateChanged) {
+          console.log('[Zarif] Google Wallet: Could not change state dropdown');
+        }
+
+        console.log('[Zarif] Google Wallet: Comprehensive handling completed');
+        console.log('[Zarif] Google Wallet: Country changed:', countryChanged, 'State changed:', stateChanged);
+      }
+      // ===== END GOOGLE WALLET SPECIFIC =====
+
       // Wait longer for modal/form fields to fully render after country selection
       await sleep(1500);
 
@@ -722,6 +922,64 @@ async function fillCardForm() {
       // Fill PIN code / Postal code
       await fillGPayField(['pin code', 'pin', 'pincode', 'postal', 'zip', 'postcode'], randomData.zip, 'PIN Code');
       await sleep(300);
+
+      // ===== COUNTRY DROPDOWN HANDLING - MUST HAPPEN BEFORE STATE =====
+      console.log('[Zarif] Google Pay: ===== COUNTRY DROPDOWN HANDLING =====');
+      const targetCountry = selectedCountry || 'IN';
+      console.log('[Zarif] Google Pay: Target country:', targetCountry);
+
+      // Look for current country displayed (Malaysia, MY, etc.)
+      const allElements = document.querySelectorAll('div, span, button, li');
+      let countryChanged = false;
+
+      for (const el of allElements) {
+        const text = (el.innerText || '').trim();
+        // Find element showing current country (Malaysia)
+        if (text === 'Malaysia (MY)' || text === 'Malaysia' ||
+          (text.includes('Malaysia') && text.length < 25 && !text.includes('\n'))) {
+          console.log('[Zarif] Google Pay: Found Malaysia element:', el.tagName, text);
+
+          // Click to open country dropdown
+          el.click();
+          await sleep(500);
+
+          // Also click parent (in case it's the trigger)
+          if (el.parentElement) {
+            el.parentElement.click();
+            await sleep(300);
+          }
+
+          // Search for India option
+          const countryOptions = document.querySelectorAll('div, span, li, button');
+          for (const opt of countryOptions) {
+            const optText = (opt.innerText || '').trim();
+            if (optText === 'India (IN)' || optText === 'India' ||
+              (optText.includes('India') && optText.length < 20 && !optText.includes('\n'))) {
+              console.log('[Zarif] Google Pay: Found India option, clicking:', optText);
+              opt.click();
+              countryChanged = true;
+              await sleep(800); // Wait for form to update with new country
+              break;
+            }
+          }
+          break;
+        }
+      }
+
+      // Fallback: Set hidden COUNTRY input directly
+      if (!countryChanged) {
+        const countryInput = document.querySelector('input[name="COUNTRY"]');
+        if (countryInput && countryInput.value !== targetCountry) {
+          console.log('[Zarif] Google Pay: Setting COUNTRY input directly from', countryInput.value, 'to', targetCountry);
+          countryInput.value = targetCountry;
+          countryInput.dispatchEvent(new Event('input', { bubbles: true }));
+          countryInput.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      }
+
+      console.log('[Zarif] Google Pay: Country changed:', countryChanged);
+      await sleep(500);
+      // ===== END COUNTRY DROPDOWN HANDLING =====
 
       // Handle State dropdown - Google Pay uses CUSTOM dropdown, not native <select>
       await sleep(500);
