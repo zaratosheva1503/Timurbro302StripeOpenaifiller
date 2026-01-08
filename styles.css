@@ -967,7 +967,7 @@ body {
   border: 1px solid #2a4a3a;
 }
 
-.btn-copy-card {
+.btn-autofill-card {
   background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
   color: white;
   border: none;
@@ -980,7 +980,7 @@ body {
   white-space: nowrap;
 }
 
-.btn-copy-card:hover {
+.btn-autofill-card:hover {
   background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
   transform: translateY(-1px);
 }

@@ -473,20 +473,54 @@ function showLiveCCResults(liveCards) {
             <span>CVV: ${card.cvv}</span>
           </div>
         </div>
-        <button class="btn-copy-card" data-card="${card.cardNumber}|${card.expiry}|${card.cvv}">📋 Copy</button>
+        <button class="btn-autofill-card" data-cardnumber="${card.cardNumber}" data-expiry="${card.expiry}" data-cvv="${card.cvv}">🔄 Autofill</button>
       </div>
     `;
   });
 
   liveccCardsList.innerHTML = html;
 
-  // Add copy handlers
-  document.querySelectorAll('.btn-copy-card').forEach(btn => {
-    btn.addEventListener('click', function () {
-      const cardData = this.getAttribute('data-card');
-      copyToClipboard(cardData);
-      this.textContent = '✓ Copied!';
-      setTimeout(() => { this.textContent = '📋 Copy'; }, 1500);
+  // Add autofill handlers
+  document.querySelectorAll('.btn-autofill-card').forEach(btn => {
+    btn.addEventListener('click', async function () {
+      const cardNumber = this.getAttribute('data-cardnumber');
+      const expiry = this.getAttribute('data-expiry');
+      const cvv = this.getAttribute('data-cvv');
+
+      // Parse expiry (format: MM/YY)
+      const [expMonth, expYear] = expiry.split('/');
+
+      // Create card object for autofill
+      const cardData = {
+        card_number: cardNumber,
+        expiry_month: expMonth,
+        expiry_year: '20' + expYear,
+        cvv: cvv
+      };
+
+      // Save to storage and trigger autofill
+      await chrome.storage.local.set({
+        generatedCards: [cardData],
+        randomData: {
+          name: 'Seojun Lim',
+          address: '123 Gangnam-daero',
+          city: 'Seoul',
+          zip: '06130',
+          state: 'Seoul',
+          country: 'KR'
+        }
+      });
+
+      // Get active tab and send fill command
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (tab) {
+        chrome.tabs.sendMessage(tab.id, { action: 'fillForm' });
+        this.textContent = '✓ Filled!';
+        setTimeout(() => { this.textContent = '🔄 Autofill'; }, 1500);
+      } else {
+        this.textContent = '❌ No tab';
+        setTimeout(() => { this.textContent = '🔄 Autofill'; }, 1500);
+      }
     });
   });
 }
