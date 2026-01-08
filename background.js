@@ -2476,7 +2476,7 @@ async function checkLiveCCCards(bin, country, expiryMonth, expiryYear) {
 
 // Function to paste cards and click start (runs in page context)
 function pasteCardsAndStart(cardLines) {
-  console.log('[Live CC] Pasting cards with React setter...');
+  console.log('[Live CC] Pasting cards with React setter + Blur...');
 
   // Find textarea
   const textarea = document.querySelector('textarea');
@@ -2492,44 +2492,64 @@ function pasteCardsAndStart(cardLines) {
 
     textarea.dispatchEvent(new Event('input', { bubbles: true }));
     textarea.dispatchEvent(new Event('change', { bubbles: true }));
+
+    // CRITICAL: Blur to trigger any "onBlur" validation
+    textarea.dispatchEvent(new Event('blur', { bubbles: true }));
+    textarea.blur();
+
   } catch (e) {
     console.error('[Live CC] React setter failed, falling back to standard:', e);
     textarea.value = cardLines;
     textarea.dispatchEvent(new Event('input', { bubbles: true }));
   }
 
-  console.log('[Live CC] Pasted cards, now upgrading button interaction...');
+  console.log('[Live CC] Pasted cards, waiting for validation...');
 
-  // Give React a moment to process the input event
+  // Wait longer for React to validate the input
   setTimeout(() => {
-    const buttons = document.querySelectorAll('button');
-    let startBtn = null;
+    const attemptClick = (retryCount = 0) => {
+      const buttons = document.querySelectorAll('button');
+      let startBtn = null;
 
-    for (const btn of buttons) {
-      const text = btn.textContent.toLowerCase().trim();
-      if ((text.includes('start') && text.includes('validation')) ||
-        (text.includes('start') && !text.includes('stop'))) {
-        startBtn = btn;
-        break;
+      for (const btn of buttons) {
+        const text = btn.textContent.toLowerCase().trim();
+        if ((text.includes('start') && text.includes('validation')) ||
+          (text.includes('start') && !text.includes('stop'))) {
+          startBtn = btn;
+          break;
+        }
       }
-    }
 
-    if (startBtn) {
-      console.log('[Live CC] Found Start button, simulating user interaction...');
+      if (startBtn) {
+        console.log(`[Live CC] Found Start button, click attempt #${retryCount + 1}...`);
 
-      // Focus element
-      startBtn.focus();
+        // Scroll into view
+        startBtn.scrollIntoView({ behavior: 'auto', block: 'center' });
 
-      // Dispatch events in realistic order
-      const opts = { bubbles: true, cancelable: true, view: window };
-      startBtn.dispatchEvent(new MouseEvent('mousedown', opts));
-      startBtn.dispatchEvent(new MouseEvent('mouseup', opts));
-      startBtn.click();
+        // Focus
+        startBtn.focus();
 
-    } else {
-      console.error('[Live CC] Start button not found during paste phase');
-    }
-  }, 100);
+        // Dispatch events
+        const opts = { bubbles: true, cancelable: true, view: window };
+        startBtn.dispatchEvent(new MouseEvent('mousedown', opts));
+        startBtn.dispatchEvent(new MouseEvent('mouseup', opts));
+        startBtn.click();
+
+        // Retry a few times if needed
+        if (retryCount < 3) {
+          setTimeout(() => attemptClick(retryCount + 1), 800);
+        } else {
+          console.log('[Live CC] Finished click attempts');
+        }
+
+      } else {
+        console.error('[Live CC] Start button not found during click phase');
+      }
+    };
+
+    attemptClick();
+
+  }, 500); // Increased wait time to 500ms
 
   return { success: true };
 }
