@@ -396,10 +396,58 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     stopLiveCCCheck();
     sendResponse({ success: true });
     return true;
+  } else if (request.action === 'trustedClick') {
+    // Use Chrome Debugger API to send a real, trusted mouse click
+    (async () => {
+      const tabId = sender.tab.id;
+      const { x, y } = request;
+
+      try {
+        // Attach debugger to the tab
+        await chrome.debugger.attach({ tabId }, '1.3');
+        console.log('[Debugger] Attached to tab', tabId);
+
+        // Send mousePressed event
+        await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+          type: 'mousePressed',
+          x: x,
+          y: y,
+          button: 'left',
+          clickCount: 1
+        });
+
+        // Send mouseReleased event
+        await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+          type: 'mouseReleased',
+          x: x,
+          y: y,
+          button: 'left',
+          clickCount: 1
+        });
+
+        console.log('[Debugger] Clicked at', x, y);
+
+        // Detach after a short delay
+        setTimeout(async () => {
+          try {
+            await chrome.debugger.detach({ tabId });
+            console.log('[Debugger] Detached from tab', tabId);
+          } catch (e) {
+            // Tab might be closed
+          }
+        }, 500);
+
+        sendResponse({ success: true });
+      } catch (error) {
+        console.error('[Debugger] Error:', error);
+        sendResponse({ success: false, error: error.message });
+      }
+    })();
+    return true; // Will respond asynchronously
   } else if (request.action === 'liveccExtractResults') {
     // Handle results from content script
-    if (sender.tab) {
-      handleLiveCCResults(request.liveCards, sender.tab.id);
+    if (sender.tab && request.results && request.results.result) {
+      handleLiveCCResults(request.results.result.liveCards || [], sender.tab.id);
     }
     sendResponse({ success: true });
     return true;

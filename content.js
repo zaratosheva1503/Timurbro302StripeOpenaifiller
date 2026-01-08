@@ -1799,15 +1799,28 @@ async function handleLiveCCCheck(cardLines) {
     if (startBtn) {
       console.log('[Zarif Live CC] Found button:', startBtn.textContent);
       startBtn.scrollIntoView({ behavior: 'auto', block: 'center' });
-      await sleep(100);
+      await sleep(200);
 
-      // Try multiple click methods
-      startBtn.focus();
-      startBtn.click();
-      startBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+      // Get button coordinates for trusted click
+      const rect = startBtn.getBoundingClientRect();
+      const x = Math.round(rect.left + rect.width / 2);
+      const y = Math.round(rect.top + rect.height / 2);
 
-      // Also try clicking parent
-      if (startBtn.parentElement) startBtn.parentElement.click();
+      console.log('[Zarif Live CC] Requesting TRUSTED click at:', x, y);
+
+      // Request trusted click from background.js (uses Chrome Debugger API)
+      try {
+        const response = await chrome.runtime.sendMessage({
+          action: 'trustedClick',
+          x: x,
+          y: y
+        });
+        console.log('[Zarif Live CC] Trusted click response:', response);
+      } catch (e) {
+        console.error('[Zarif Live CC] Trusted click failed:', e);
+        // Fallback to regular click
+        startBtn.click();
+      }
 
       return true;
     }
@@ -1815,10 +1828,10 @@ async function handleLiveCCCheck(cardLines) {
   };
 
   // Retry clicking a few times
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 3; i++) {
     if (await findAndClickButton()) {
       console.log(`[Zarif Live CC] Clicked button (attempt ${i + 1})`);
-      await sleep(800); // Wait between clicks if we retry
+      await sleep(1500); // Wait longer for debugger-based click
     } else {
       await sleep(500);
     }
