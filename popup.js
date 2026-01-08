@@ -1,5 +1,5 @@
-const DEFAULT_BIN = '625814260209xxxx';
-const INDIA_DEFAULT_BIN = '551827894390xxxx';
+const DEFAULT_BIN = '625814260207xxxx';
+const INDIA_DEFAULT_BIN = '551827706xxxx';
 
 let binInput, generateBtn, clearBtn, statusDiv, savedBinDiv, savedBinValue, generateMethodSelect, countrySelect, expiryMonth, expiryYear;
 let precardBinInput, generatePrecardsBtn, clearPrecardsBtn, precardStatusDiv, precardsList, precardMethodSelect, precardCountrySelect;
@@ -56,12 +56,12 @@ function updateDefaultsForCountry() {
     if (expiryMonth) expiryMonth.value = '03';
     if (expiryYear) expiryYear.value = '2029';
   } else {
-    // South Korea defaults
+    // South Korea/USA/UK defaults
     console.log('Setting South Korea defaults');
     binInput.value = DEFAULT_BIN;
     savedBinValue.textContent = DEFAULT_BIN;
-    if (expiryMonth) expiryMonth.value = '04';
-    if (expiryYear) expiryYear.value = '2027';
+    if (expiryMonth) expiryMonth.value = '01';
+    if (expiryYear) expiryYear.value = '2033';
   }
 }
 

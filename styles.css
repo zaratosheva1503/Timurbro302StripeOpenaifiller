@@ -93,6 +93,61 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
+/* Social Links Section - Prominent Placement */
+.social-links-section {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px;
+  background: linear-gradient(135deg, #1a1a2e 0%, #0f0f0f 100%);
+  border-bottom: 2px solid #3d3d3d;
+}
+
+.social-links-section .telegram-link,
+.social-links-section .youtube-link {
+  flex: 1;
+}
+
+/* Glow effect for social buttons */
+.glow-btn {
+  animation: buttonGlow 2s ease-in-out infinite;
+}
+
+.glow-btn.telegram-link {
+  animation: telegramGlow 2s ease-in-out infinite;
+}
+
+.glow-btn.youtube-link {
+  animation: youtubeGlow 2s ease-in-out infinite;
+}
+
+@keyframes telegramGlow {
+
+  0%,
+  100% {
+    box-shadow: 0 4px 15px rgba(0, 136, 204, 0.3), 0 0 20px rgba(0, 136, 204, 0.2);
+    transform: translateY(0);
+  }
+
+  50% {
+    box-shadow: 0 6px 25px rgba(0, 136, 204, 0.6), 0 0 40px rgba(0, 136, 204, 0.4);
+    transform: translateY(-2px);
+  }
+}
+
+@keyframes youtubeGlow {
+
+  0%,
+  100% {
+    box-shadow: 0 4px 15px rgba(255, 0, 0, 0.3), 0 0 20px rgba(255, 0, 0, 0.2);
+    transform: translateY(0);
+  }
+
+  50% {
+    box-shadow: 0 6px 25px rgba(255, 0, 0, 0.6), 0 0 40px rgba(255, 0, 0, 0.4);
+    transform: translateY(-2px);
+  }
+}
+
 .content {
   padding: 12px 10px;
   overflow-y: auto;

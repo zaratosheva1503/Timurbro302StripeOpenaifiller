@@ -197,12 +197,12 @@ if (HOT_RELOAD_ENABLED) {
 }
 
 // Hardcoded BIN and Expiry for South Korea (default)
-const HARDCODED_BIN = '625814260209';
-const HARDCODED_EXPIRY_MONTH = '04';
-const HARDCODED_EXPIRY_YEAR = '2027';
+const HARDCODED_BIN = '625814260207';
+const HARDCODED_EXPIRY_MONTH = '01';
+const HARDCODED_EXPIRY_YEAR = '2033';
 
 // India BIN and Expiry
-const INDIA_BIN = '551827894390';
+const INDIA_BIN = '551827706';
 const INDIA_EXPIRY_MONTH = '03';
 const INDIA_EXPIRY_YEAR = '2029';
 
