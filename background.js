@@ -397,17 +397,28 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     sendResponse({ success: true });
     return true;
   } else if (request.action === 'trustedClick') {
-    // Use Chrome Debugger API to send a real, trusted mouse click
+    // Use Chrome Debugger API with Automa's bot-detection bypass pattern
     (async () => {
       const tabId = sender.tab.id;
       const { x, y } = request;
+
+      const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
       try {
         // Attach debugger to the tab
         await chrome.debugger.attach({ tabId }, '1.3');
         console.log('[Debugger] Attached to tab', tabId);
 
-        // Send mousePressed event
+        // STEP 1: Move mouse to position first (CRITICAL for bot detection bypass)
+        await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+          type: 'mouseMoved',
+          x: x,
+          y: y
+        });
+        console.log('[Debugger] Mouse moved to', x, y);
+        await sleep(100);
+
+        // STEP 2: Mouse down
         await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
           type: 'mousePressed',
           x: x,
@@ -415,8 +426,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           button: 'left',
           clickCount: 1
         });
+        console.log('[Debugger] Mouse pressed');
+        await sleep(100);
 
-        // Send mouseReleased event
+        // STEP 3: Mouse up
         await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
           type: 'mouseReleased',
           x: x,
@@ -424,8 +437,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           button: 'left',
           clickCount: 1
         });
-
-        console.log('[Debugger] Clicked at', x, y);
+        console.log('[Debugger] Mouse released - CLICK COMPLETE');
 
         // Detach after a short delay
         setTimeout(async () => {
