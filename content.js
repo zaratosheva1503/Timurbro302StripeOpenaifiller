@@ -1,4 +1,5 @@
 let isProcessing = false;
+let isAuthHandling = false;
 
 // Check if we're inside a Stripe iframe
 const isStripeIframe = window.location.hostname.includes('js.stripe.com');
@@ -1482,126 +1483,262 @@ if (isStripeIframe) {
 // Check if we're on an OpenAI auth page
 if (window.location.hostname === 'auth.openai.com') {
   console.log('[Zarif K12] Detected auth.openai.com page');
+  let lastAuthPath = window.location.pathname;
 
   // Wait for page to load then handle
   setTimeout(() => {
     handleOpenAIAuthPage();
   }, 2000);
+
+  setInterval(() => {
+    if (window.location.pathname !== lastAuthPath) {
+      lastAuthPath = window.location.pathname;
+      handleOpenAIAuthPage();
+    }
+  }, 1000);
 }
 
 async function handleOpenAIAuthPage() {
-  const currentPath = window.location.pathname;
-  console.log('[Zarif K12] Current path:', currentPath);
+  if (isAuthHandling) return;
+  isAuthHandling = true;
 
-  // Get latest K12 account credentials
-  const storage = await chrome.storage.local.get(['k12Accounts']);
-  const accounts = storage.k12Accounts || [];
+  try {
+    const currentPath = window.location.pathname;
+    console.log('[Zarif K12] Current path:', currentPath);
 
-  if (accounts.length === 0) {
-    console.log('[Zarif K12] No K12 accounts found');
-    return;
+    const storage = await chrome.storage.local.get(['k12Accounts', 'k12PendingAccount']);
+    const accounts = storage.k12Accounts || [];
+    const pendingAccount = storage.k12PendingAccount || null;
+
+    if (!pendingAccount && accounts.length === 0) {
+      console.log('[Zarif K12] No K12 accounts found');
+      return;
+    }
+
+    const candidates = [];
+    if (pendingAccount) candidates.push(pendingAccount);
+    candidates.push(...accounts);
+
+    const emailDisplay = document.querySelector('[class*="email"], .email-address, input[type="email"][readonly], div[class*="Email"]');
+    const pageEmail = emailDisplay ? (emailDisplay.textContent || emailDisplay.value || '') : '';
+
+    let matchingAccount = null;
+    if (pageEmail) {
+      matchingAccount = candidates.find(acc => pageEmail.includes(acc.email) || acc.email.includes(pageEmail.split('@')[0]));
+    }
+
+    if (!matchingAccount) {
+      const pageText = document.body.innerText;
+      matchingAccount = candidates.find(acc => pageText.includes(acc.email));
+    }
+
+    const targetAccount = matchingAccount || pendingAccount || accounts[0];
+    if (!targetAccount) {
+      console.log('[Zarif K12] No target account found for autofill');
+      return;
+    }
+
+    console.log('[Zarif K12] Using account:', targetAccount.email);
+
+    if (currentPath.includes('/create-account/password') || currentPath.includes('/password')) {
+      console.log('[Zarif K12] Detected password page, auto-filling...');
+      await fillPasswordPage(targetAccount.password);
+    }
+
+    if (currentPath.includes('/email-verification') || currentPath.includes('/verification')) {
+      console.log('[Zarif K12] Detected verification page');
+      showVerificationNotification();
+    }
+
+    if (currentPath.includes('/about-you') || currentPath.includes('/onboarding') || currentPath.includes('/profile')) {
+      console.log('[Zarif K12] Detected profile page, auto-filling...');
+      await fillAboutYouPage();
+    }
+  } finally {
+    isAuthHandling = false;
+  }
+}
+
+function isVisible(element) {
+  return !!(element && (element.offsetWidth || element.offsetHeight || element.getClientRects().length));
+}
+
+async function typeWithEvents(input, value) {
+  input.focus();
+  input.value = '';
+  for (const char of value) {
+    input.value += char;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: char, bubbles: true }));
+    input.dispatchEvent(new KeyboardEvent('keypress', { key: char, bubbles: true }));
+    input.dispatchEvent(new KeyboardEvent('keyup', { key: char, bubbles: true }));
+    await sleep(20);
+  }
+  input.dispatchEvent(new Event('change', { bubbles: true }));
+  input.dispatchEvent(new Event('blur', { bubbles: true }));
+}
+
+function findContinueButton(contextElement) {
+  const scope = contextElement && contextElement.querySelectorAll ? contextElement : document;
+  const submitButton = scope.querySelector('button[type="submit"]');
+  if (submitButton && isVisible(submitButton)) return submitButton;
+
+  const buttons = Array.from(scope.querySelectorAll('button')).filter(isVisible);
+  return buttons.find(btn => {
+    const text = (btn.textContent || '').toLowerCase();
+    return text.includes('continue') || text.includes('next') || text.includes('create') || text.includes('verify');
+  }) || null;
+}
+
+async function clickContinueButton(contextElement, maxAttempts = 12) {
+  const form = contextElement && contextElement.closest ? contextElement.closest('form') : null;
+  const scope = form || document;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const button = findContinueButton(scope);
+    if (button && !button.disabled) {
+      button.click();
+      return true;
+    }
+
+    if (form && typeof form.requestSubmit === 'function') {
+      form.requestSubmit();
+    }
+
+    await sleep(400);
   }
 
-  const latestAccount = accounts[0]; // Most recent account
-  console.log('[Zarif K12] Latest account:', latestAccount.email);
+  return false;
+}
 
-  // Get email from the page to match
-  const emailDisplay = document.querySelector('[class*="email"], .email-address, input[type="email"][readonly], div[class*="Email"]');
-  const pageEmail = emailDisplay ? emailDisplay.textContent || emailDisplay.value : '';
+function getRandomNameParts() {
+  const suffix = Math.floor(Math.random() * 9000) + 1000;
+  return {
+    first: 'User',
+    last: `Test${suffix}`,
+    full: `User Test${suffix}`
+  };
+}
 
-  // Find matching account
-  let matchingAccount = accounts.find(acc => pageEmail.includes(acc.email) || acc.email.includes(pageEmail.split('@')[0]));
+function getRandomBirthday() {
+  const month = Math.floor(Math.random() * 12) + 1;
+  const day = Math.floor(Math.random() * 28) + 1;
+  const year = 1980 + Math.floor(Math.random() * 21);
+  return {
+    month,
+    day,
+    year,
+    monthStr: String(month).padStart(2, '0'),
+    dayStr: String(day).padStart(2, '0')
+  };
+}
 
-  if (!matchingAccount) {
-    // Try to find email in the page text
-    const pageText = document.body.innerText;
-    matchingAccount = accounts.find(acc => pageText.includes(acc.email));
+function setSelectValue(selectElement, values) {
+  if (!selectElement) return false;
+  const targets = values.map(value => String(value).toLowerCase());
+  const option = Array.from(selectElement.options).find(opt => {
+    const optValue = (opt.value || '').toLowerCase();
+    const optText = (opt.textContent || '').trim().toLowerCase();
+    return targets.includes(optValue) || targets.includes(optText);
+  });
+
+  if (!option) return false;
+  selectElement.value = option.value;
+  selectElement.dispatchEvent(new Event('change', { bubbles: true }));
+  return true;
+}
+
+async function fillBirthdayFields() {
+  const birthday = getRandomBirthday();
+  const monthSelect = document.querySelector('select[name*="month"], select[id*="month"], select[aria-label*="Month"]');
+  const daySelect = document.querySelector('select[name*="day"], select[id*="day"], select[aria-label*="Day"]');
+  const yearSelect = document.querySelector('select[name*="year"], select[id*="year"], select[aria-label*="Year"]');
+
+  if (monthSelect && daySelect && yearSelect) {
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const monthName = monthNames[birthday.month - 1];
+    const monthAbbrev = monthName.slice(0, 3);
+    setSelectValue(monthSelect, [birthday.month, birthday.monthStr, monthName, monthAbbrev]);
+    setSelectValue(daySelect, [birthday.day, birthday.dayStr]);
+    setSelectValue(yearSelect, [birthday.year]);
+    return true;
   }
 
-  const targetAccount = matchingAccount || latestAccount;
-  console.log('[Zarif K12] Using account:', targetAccount.email);
+  const monthInput = document.querySelector('input[placeholder="MM"], input[aria-label*="Month"], input[name*="month"]');
+  const dayInput = document.querySelector('input[placeholder="DD"], input[aria-label*="Day"], input[name*="day"]');
+  const yearInput = document.querySelector('input[placeholder="YYYY"], input[aria-label*="Year"], input[name*="year"]');
 
-  // Handle password page
-  if (currentPath.includes('/create-account/password') || currentPath.includes('/password')) {
-    console.log('[Zarif K12] Detected password page, auto-filling...');
-    await fillPasswordPage(targetAccount.password);
+  if (monthInput && dayInput && yearInput) {
+    await typeWithEvents(monthInput, birthday.monthStr);
+    await typeWithEvents(dayInput, birthday.dayStr);
+    await typeWithEvents(yearInput, String(birthday.year));
+    return true;
   }
 
-  // Handle verification code page
-  if (currentPath.includes('/email-verification') || currentPath.includes('/verification')) {
-    console.log('[Zarif K12] Detected verification page');
-    showVerificationNotification();
+  const dateInput = document.querySelector('input[type="date"]');
+  if (dateInput) {
+    dateInput.value = `${birthday.year}-${birthday.monthStr}-${birthday.dayStr}`;
+    dateInput.dispatchEvent(new Event('input', { bubbles: true }));
+    dateInput.dispatchEvent(new Event('change', { bubbles: true }));
+    return true;
   }
 
-  // Handle about-you page (name/birthday)
-  if (currentPath.includes('/about-you')) {
-    console.log('[Zarif K12] Detected about-you page, auto-filling...');
-    await fillAboutYouPage();
+  const birthdayInput = document.querySelector('input[placeholder*="Birthday"], input[name*="birth"]');
+  if (birthdayInput) {
+    await typeWithEvents(birthdayInput, `${birthday.monthStr}/${birthday.dayStr}/${birthday.year}`);
+    return true;
   }
+
+  return false;
 }
 
 async function fillPasswordPage(password) {
   const passwordInput = document.querySelector('input[type="password"]') ||
     document.querySelector('input[name="password"]');
 
-  if (passwordInput) {
-    passwordInput.value = password;
-    passwordInput.dispatchEvent(new Event('input', { bubbles: true }));
-    passwordInput.dispatchEvent(new Event('change', { bubbles: true }));
+  if (!passwordInput) return;
 
-    showNotification('🔑 Password auto-filled from K12 account!', 'success');
-    console.log('[Zarif K12] Password filled');
+  await typeWithEvents(passwordInput, password);
+  showNotification('🔑 Password auto-filled from K12 account!', 'success');
+  console.log('[Zarif K12] Password filled');
 
-    // Auto-click continue after short delay
-    await sleep(1000);
-    const continueBtn = document.querySelector('button[type="submit"]') ||
-      Array.from(document.querySelectorAll('button')).find(b =>
-        b.textContent.toLowerCase().includes('continue'));
-    if (continueBtn) {
-      console.log('[Zarif K12] Clicking continue button');
-      continueBtn.click();
-    }
+  await sleep(400);
+  const clicked = await clickContinueButton(passwordInput);
+  if (!clicked) {
+    console.log('[Zarif K12] Continue button not clickable yet');
   }
 }
 
 async function fillAboutYouPage() {
-  // Fill name
-  const nameInput = document.querySelector('input[name="name"]') ||
-    document.querySelector('input[placeholder*="name"]') ||
-    document.querySelector('input[type="text"]');
+  const nameParts = getRandomNameParts();
+  const firstNameInput = document.querySelector('input[name*="first"], input[placeholder*="First"]');
+  const lastNameInput = document.querySelector('input[name*="last"], input[placeholder*="Last"]');
+  const nameInput = document.querySelector('input[name="name"], input[autocomplete="name"], input[placeholder*="name"]');
 
-  if (nameInput && !nameInput.value) {
-    nameInput.value = 'User' + Math.floor(Math.random() * 10000);
-    nameInput.dispatchEvent(new Event('input', { bubbles: true }));
+  if ((firstNameInput || lastNameInput) && (!firstNameInput?.value || !lastNameInput?.value)) {
+    if (firstNameInput && !firstNameInput.value) {
+      await typeWithEvents(firstNameInput, nameParts.first);
+    }
+    if (lastNameInput && !lastNameInput.value) {
+      await typeWithEvents(lastNameInput, nameParts.last);
+    }
+  } else if (nameInput && !nameInput.value) {
+    await typeWithEvents(nameInput, nameParts.full);
   }
 
-  // Fill birthday - for the editable format MM/DD/YYYY
-  const birthdayInput = document.querySelector('input[placeholder*="Birthday"]') ||
-    document.querySelector('input[name*="birthday"]') ||
-    document.querySelector('input[type="date"]');
-
-  if (birthdayInput && !birthdayInput.value) {
-    const randomMonth = String(Math.floor(Math.random() * 12) + 1).padStart(2, '0');
-    const randomDay = String(Math.floor(Math.random() * 28) + 1).padStart(2, '0');
-    const randomYear = String(1980 + Math.floor(Math.random() * 21)); // 1980-2000
-
-    if (birthdayInput.type === 'date') {
-      birthdayInput.value = `${randomYear}-${randomMonth}-${randomDay}`;
-    } else {
-      birthdayInput.value = `${randomMonth}/${randomDay}/${randomYear}`;
-    }
-    birthdayInput.dispatchEvent(new Event('input', { bubbles: true }));
+  const birthdayFilled = await fillBirthdayFields();
+  if (!birthdayFilled) {
+    console.log('[Zarif K12] Birthday fields not found');
   }
 
   showNotification('👤 Profile info auto-filled!', 'success');
 
   // Auto-click continue after short delay
-  await sleep(1000);
-  const continueBtn = document.querySelector('button[type="submit"]') ||
-    Array.from(document.querySelectorAll('button')).find(b =>
-      b.textContent.toLowerCase().includes('continue'));
-  if (continueBtn) {
-    continueBtn.click();
+  await sleep(400);
+  const contextElement = firstNameInput || lastNameInput || nameInput || document.querySelector('form');
+  const clicked = await clickContinueButton(contextElement);
+  if (!clicked) {
+    console.log('[Zarif K12] Continue button not clickable on profile step');
   }
 }
 

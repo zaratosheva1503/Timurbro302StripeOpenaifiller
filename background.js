@@ -139,7 +139,7 @@ function randomChoice(arr) {
 }
 
 // ===== HARDCODED CONFIGURATION FOR OPENAI =====
-const EXTENSION_VERSION = '6.4.7';
+const EXTENSION_VERSION = '6.6.0';
 
 // ===== HOT RELOAD FOR DEVELOPMENT =====
 // Checks for file changes every 2 seconds and reloads extension if detected
@@ -760,11 +760,15 @@ function generateEmailName() {
 
 // Generate unique password: Zarif# + 6 random chars (total 12+ chars)
 function generatePassword() {
-  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  const letters = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz';
+  const digits = '23456789';
+  const chars = letters + digits;
   let suffix = '';
-  for (let i = 0; i < 6; i++) {
+  suffix += digits.charAt(Math.floor(Math.random() * digits.length));
+  for (let i = 0; i < 5; i++) {
     suffix += chars.charAt(Math.floor(Math.random() * chars.length));
   }
+  suffix = suffix.split('').sort(() => Math.random() - 0.5).join('');
   return 'Zarif#' + suffix;
 }
 
@@ -796,7 +800,7 @@ function sendK12Error(message) {
 
 // Main orchestrator for ChatGPT account creation
 async function createChatGPTAccount() {
-  console.log('[K12] Starting account creation...');
+  console.log('[K12] Starting account creation v6.4.8...');
 
   try {
     // Generate unique credentials
@@ -807,19 +811,46 @@ async function createChatGPTAccount() {
 
     console.log('[K12] Generated email:', k12State.email);
     console.log('[K12] Generated password:', k12State.password);
+    await chrome.storage.local.set({
+      k12PendingAccount: {
+        email: k12State.email,
+        password: k12State.password,
+        createdAt: Date.now()
+      }
+    });
 
     // Step 1: Create temp email (10%)
     sendK12Progress(10, 'Creating temp email...');
-    const tempMailTab = await chrome.tabs.create({
-      url: TEMP_MAIL_URL,
-      active: false
-    });
+
+    // Create INCOGNITO window for temp mail - no cookies/session from regular browser!
+    console.log('[K12] Creating incognito window for temp mail...');
+    let incognitoWindow;
+    let tempMailTab;
+
+    try {
+      incognitoWindow = await chrome.windows.create({
+        url: TEMP_MAIL_URL,
+        incognito: true,
+        focused: false,
+        state: 'minimized'
+      });
+      tempMailTab = incognitoWindow.tabs[0];
+      k12State.incognitoWindowId = incognitoWindow.id;
+    } catch (e) {
+      console.log('[K12] Incognito failed, using regular tab:', e.message);
+      // Fallback to regular tab if incognito not allowed
+      tempMailTab = await chrome.tabs.create({
+        url: TEMP_MAIL_URL,
+        active: false
+      });
+    }
+
     k12State.tempMailTabId = tempMailTab.id;
-    console.log('[K12] Opened temp mail tab:', tempMailTab.id);
+    console.log('[K12] Opened temp mail tab in incognito:', tempMailTab.id);
 
     // Wait for temp mail page to load
     await waitForTabLoad(tempMailTab.id);
-    await sleep(3000); // Extra wait for JS to initialize
+    await sleep(4000); // Extra wait for JS to initialize
 
     // Create the email
     await chrome.scripting.executeScript({
@@ -828,7 +859,7 @@ async function createChatGPTAccount() {
       args: [emailName]
     });
 
-    await sleep(3000); // Wait for email creation
+    await sleep(4000); // Wait for email creation
 
     // Step 2: Navigate to ChatGPT signup (20%)
     sendK12Progress(20, 'Opening ChatGPT signup...');
@@ -841,63 +872,120 @@ async function createChatGPTAccount() {
     console.log('[K12] Opened ChatGPT tab:', chatgptTab.id);
 
     await waitForTabLoad(chatgptTab.id);
-    await sleep(2000);
-
-    // Click signup button
-    sendK12Progress(25, 'Clicking Sign Up...');
-    await chrome.scripting.executeScript({
-      target: { tabId: chatgptTab.id },
-      func: clickSignupButton
-    });
-
-    // Wait for authentication page
     await sleep(3000);
-    await waitForUrlContains(chatgptTab.id, 'auth.openai.com', 15000);
+
+    // Click signup button - try multiple times
+    sendK12Progress(25, 'Clicking Sign Up...');
+    let signupClicked = false;
+    for (let attempt = 0; attempt < 3 && !signupClicked; attempt++) {
+      console.log('[K12] Signup click attempt:', attempt + 1);
+      const clickResult = await chrome.scripting.executeScript({
+        target: { tabId: chatgptTab.id },
+        func: clickSignupButton
+      });
+      if (clickResult && clickResult[0] && clickResult[0].result) {
+        signupClicked = true;
+      }
+      await sleep(2000);
+    }
+
+    // Wait for authentication page - check for BOTH URL and modal elements
+    await sleep(4000);
+    console.log('[K12] Waiting for auth page...');
+
+    // Try multiple URL patterns that OpenAI might use
+    const reachedAuth = await waitForUrlContainsAny(chatgptTab.id, ['auth.openai.com', 'auth0.openai.com', 'login', 'signup'], 30000);
+
+    if (!reachedAuth) {
+      // Check if we're still on chatgpt.com but have a modal
+      const hasAuthModal = await chrome.scripting.executeScript({
+        target: { tabId: chatgptTab.id },
+        func: () => {
+          const emailInput = document.querySelector('input[type="email"], input[name="email"], input[autocomplete="email"]');
+          return !!emailInput;
+        }
+      });
+
+      if (!hasAuthModal || !hasAuthModal[0] || !hasAuthModal[0].result) {
+        throw new Error('Timed out waiting for OpenAI signup page. Try clicking Sign Up manually.');
+      }
+      console.log('[K12] Found auth modal on chatgpt.com');
+    }
     await sleep(2000);
 
     // Step 3: Enter email (35%)
     sendK12Progress(35, 'Entering email...');
-    await chrome.scripting.executeScript({
-      target: { tabId: chatgptTab.id },
-      func: fillEmailAndContinue,
-      args: [k12State.email]
-    });
+    let emailEntered = false;
+    for (let attempt = 0; attempt < 3 && !emailEntered; attempt++) {
+      console.log('[K12] Email entry attempt:', attempt + 1);
+      const emailResult = await chrome.scripting.executeScript({
+        target: { tabId: chatgptTab.id },
+        func: fillEmailAndContinue,
+        args: [k12State.email]
+      });
+      if (emailResult && emailResult[0] && emailResult[0].result) {
+        emailEntered = true;
+      }
+      await sleep(2000);
+    }
 
-    // Wait for password page
-    await sleep(3000);
-    await waitForUrlContains(chatgptTab.id, 'password', 15000);
+    // Wait for password page - use longer timeout and multiple patterns
+    await sleep(4000);
+    console.log('[K12] Waiting for password page...');
+    const reachedPassword = await waitForElementOrUrl(chatgptTab.id, ['password'], 'input[type="password"]', 25000);
+    if (!reachedPassword) {
+      throw new Error('Timed out waiting for password step. Email may not have been accepted.');
+    }
     await sleep(2000);
 
     // Step 4: Enter password (50%)
     sendK12Progress(50, 'Setting password...');
-    await chrome.scripting.executeScript({
-      target: { tabId: chatgptTab.id },
-      func: fillPasswordAndContinue,
-      args: [k12State.password]
-    });
+    let passwordEntered = false;
+    for (let attempt = 0; attempt < 3 && !passwordEntered; attempt++) {
+      console.log('[K12] Password entry attempt:', attempt + 1);
+      const passResult = await chrome.scripting.executeScript({
+        target: { tabId: chatgptTab.id },
+        func: fillPasswordAndContinue,
+        args: [k12State.password]
+      });
+      if (passResult && passResult[0] && passResult[0].result) {
+        passwordEntered = true;
+      }
+      await sleep(3000);
+    }
 
-    // Wait for verification page
-    await sleep(3000);
-    await waitForUrlContains(chatgptTab.id, 'verification', 15000);
+    // Wait for verification page - check for various code input patterns
+    await sleep(5000); // Longer wait for password processing
+    console.log('[K12] Waiting for verification page...');
+
+    // Check for verification page with multiple detection methods
+    const reachedVerification = await waitForVerificationPage(chatgptTab.id, 35000);
+    if (!reachedVerification) {
+      throw new Error('Timed out waiting for verification step. Password may not have been accepted.');
+    }
 
     // Step 5: Get and enter verification code (65%)
     sendK12Progress(65, 'Waiting for verification code...');
 
-    // Refresh temp mail to get code
+    // SIMPLIFIED: Keep the SAME incognito window - we're already logged into the email we created!
+    // Just need to refresh and wait for the verification email to arrive
+    console.log('[K12] Using same temp mail window - already logged in');
+
+    // Click refresh to check for new emails
     await chrome.scripting.executeScript({
       target: { tabId: tempMailTab.id },
       func: clickRefreshAndOpenEmail
     });
-    await sleep(3000);
+    await sleep(2000);
 
-    // Poll for verification code
+    // Poll for verification code - faster polling
     let verificationCode = '';
     let pollAttempts = 0;
-    const maxPollAttempts = 40; // 2 minutes max
+    const maxPollAttempts = 40;
 
     while (!verificationCode && pollAttempts < maxPollAttempts) {
       pollAttempts++;
-      sendK12Progress(65 + Math.floor(pollAttempts * 0.4), 'Checking inbox... (' + pollAttempts + ')');
+      sendK12Progress(65 + Math.floor(pollAttempts * 0.5), 'Checking inbox... (' + pollAttempts + ')');
 
       const result = await chrome.scripting.executeScript({
         target: { tabId: tempMailTab.id },
@@ -910,45 +998,79 @@ async function createChatGPTAccount() {
         break;
       }
 
-      // Every 5 attempts, try refresh again
-      if (pollAttempts % 5 === 0) {
+      // Every 3 attempts, try refresh again
+      if (pollAttempts % 3 === 0) {
         await chrome.scripting.executeScript({
           target: { tabId: tempMailTab.id },
           func: clickRefreshAndOpenEmail
         });
       }
 
-      await sleep(3000);
+      await sleep(2000); // Reduced from 3s
     }
 
     if (!verificationCode) {
-      throw new Error('Verification code not received after 2 minutes');
+      throw new Error('Verification code not received after 2.5 minutes');
     }
 
     // Step 6: Enter verification code (85%)
     sendK12Progress(85, 'Entering verification code...');
     k12State.verificationCode = verificationCode;
 
-    await chrome.scripting.executeScript({
-      target: { tabId: chatgptTab.id },
-      func: fillVerificationCodeAndContinue,
-      args: [verificationCode]
-    });
+    let codeEntered = false;
+    for (let attempt = 0; attempt < 3 && !codeEntered; attempt++) {
+      console.log('[K12] Code entry attempt:', attempt + 1);
+      const codeResult = await chrome.scripting.executeScript({
+        target: { tabId: chatgptTab.id },
+        func: fillVerificationCodeAndContinue,
+        args: [verificationCode]
+      });
+      if (codeResult && codeResult[0] && codeResult[0].result) {
+        codeEntered = true;
+      }
+      await sleep(3000);
+    }
 
     // Wait for about-you page
-    await sleep(3000);
-    await waitForUrlContains(chatgptTab.id, 'about-you', 15000);
+    await sleep(4000);
+    console.log('[K12] Waiting for profile page...');
+    const reachedAbout = await waitForElementOrUrl(chatgptTab.id, ['about-you', 'onboarding', 'profile', 'name'], 'input[name="name"], input[placeholder*="name"], input[placeholder*="Name"]', 30000);
+    if (!reachedAbout) {
+      // Check if we're already on the main chatgpt page (completed signup)
+      const tabInfo = await chrome.tabs.get(chatgptTab.id);
+      if (tabInfo.url && (tabInfo.url.includes('chat.openai.com') || tabInfo.url.includes('chatgpt.com')) && !tabInfo.url.includes('auth')) {
+        console.log('[K12] Signup appears complete, skipping profile step');
+      } else {
+        throw new Error('Timed out waiting for profile step. Verification may have failed.');
+      }
+    } else {
+      await sleep(2000);
+
+      // Step 7: Fill name and birthday (95%)
+      sendK12Progress(95, 'Completing profile...');
+      let profileFilled = false;
+      for (let attempt = 0; attempt < 3 && !profileFilled; attempt++) {
+        console.log('[K12] Profile fill attempt:', attempt + 1);
+        const profileResult = await chrome.scripting.executeScript({
+          target: { tabId: chatgptTab.id },
+          func: fillNameAndBirthdayAndContinue
+        });
+        if (profileResult && profileResult[0] && profileResult[0].result) {
+          profileFilled = true;
+        }
+        await sleep(3000);
+      }
+
+      // Wait for completion
+      await sleep(3000);
+      const finished = await waitForUrlNotContains(chatgptTab.id, 'auth.openai.com', 25000);
+      if (!finished) {
+        // Don't throw error - just warn. The account might still be created.
+        console.warn('[K12] Signup may not have completed fully. Check manually.');
+      }
+    }
+
     await sleep(2000);
-
-    // Step 7: Fill name and birthday (95%)
-    sendK12Progress(95, 'Completing profile...');
-    await chrome.scripting.executeScript({
-      target: { tabId: chatgptTab.id },
-      func: fillNameAndBirthdayAndContinue
-    });
-
-    // Wait for completion
-    await sleep(5000);
 
     // Done! (100%)
     sendK12Progress(100, 'Account created!');
@@ -963,6 +1085,7 @@ async function createChatGPTAccount() {
     }
 
     // Send success to popup
+    await chrome.storage.local.remove(['k12PendingAccount']);
     sendK12Complete(k12State.email, k12State.password);
     console.log('[K12] Account creation completed successfully!');
 
@@ -973,9 +1096,136 @@ async function createChatGPTAccount() {
     // Cleanup tabs on error
     try {
       if (k12State.tempMailTabId) chrome.tabs.remove(k12State.tempMailTabId);
-      if (k12State.chatgptTabId) chrome.tabs.remove(k12State.chatgptTabId);
     } catch (e) { }
   }
+}
+
+// Wait for element presence OR URL to match - more flexible detection
+function waitForElementOrUrl(tabId, urlParts, elementSelector, timeout = 20000) {
+  return new Promise((resolve) => {
+    const startTime = Date.now();
+    const parts = Array.isArray(urlParts) ? urlParts : [urlParts];
+
+    const check = async () => {
+      try {
+        // Check URL
+        const tab = await chrome.tabs.get(tabId);
+        if (tab.url && parts.some(part => tab.url.toLowerCase().includes(part.toLowerCase()))) {
+          console.log('[K12] URL matched:', tab.url);
+          resolve(true);
+          return;
+        }
+
+        // Check for element
+        const elementCheck = await chrome.scripting.executeScript({
+          target: { tabId: tabId },
+          func: (selector) => {
+            const el = document.querySelector(selector);
+            return !!el;
+          },
+          args: [elementSelector]
+        });
+
+        if (elementCheck && elementCheck[0] && elementCheck[0].result) {
+          console.log('[K12] Element found:', elementSelector);
+          resolve(true);
+          return;
+        }
+      } catch (e) {
+        console.log('[K12] Check error:', e.message);
+      }
+
+      if (Date.now() - startTime > timeout) {
+        console.log('[K12] Timeout waiting for URL/element');
+        resolve(false);
+        return;
+      }
+
+      setTimeout(check, 800);
+    };
+
+    check();
+  });
+}
+
+// Wait for verification page with comprehensive detection
+function waitForVerificationPage(tabId, timeout = 30000) {
+  return new Promise((resolve) => {
+    const startTime = Date.now();
+
+    const check = async () => {
+      try {
+        // Check URL first
+        const tab = await chrome.tabs.get(tabId);
+        if (tab.url && (tab.url.includes('verification') || tab.url.includes('verify') || tab.url.includes('code'))) {
+          console.log('[K12] Verification URL detected:', tab.url);
+          resolve(true);
+          return;
+        }
+
+        // Check for various code input patterns via script injection
+        const codeInputCheck = await chrome.scripting.executeScript({
+          target: { tabId: tabId },
+          func: () => {
+            // Check for code input elements with many selectors
+            const selectors = [
+              'input[name="code"]',
+              'input[autocomplete="one-time-code"]',
+              'input[inputmode="numeric"]',
+              'input[type="tel"]',
+              'input[maxlength="6"]',
+              'input[placeholder*="code" i]',
+              'input[placeholder*="verify" i]',
+              'input[aria-label*="code" i]',
+              'input[aria-label*="verification" i]'
+            ];
+
+            for (const sel of selectors) {
+              const el = document.querySelector(sel);
+              if (el) {
+                console.log('[K12] Found code input with selector:', sel);
+                return { found: true, selector: sel };
+              }
+            }
+
+            // Also check page text for verification keywords
+            const pageText = document.body.innerText.toLowerCase();
+            if (pageText.includes('enter the code') ||
+              pageText.includes('verification code') ||
+              pageText.includes('verify your email') ||
+              pageText.includes('check your email')) {
+              // Page mentions verification, look for any text input
+              const textInput = document.querySelector('input[type="text"]:not([readonly])');
+              if (textInput) {
+                console.log('[K12] Found text input on verification page');
+                return { found: true, selector: 'text-input-on-verify-page' };
+              }
+            }
+
+            return { found: false };
+          }
+        });
+
+        if (codeInputCheck && codeInputCheck[0] && codeInputCheck[0].result && codeInputCheck[0].result.found) {
+          console.log('[K12] Verification page detected via element');
+          resolve(true);
+          return;
+        }
+      } catch (e) {
+        console.log('[K12] Verification check error:', e.message);
+      }
+
+      if (Date.now() - startTime > timeout) {
+        console.log('[K12] Timeout waiting for verification page');
+        resolve(false);
+        return;
+      }
+
+      setTimeout(check, 1000);
+    };
+
+    check();
+  });
 }
 
 // Wait for tab URL to contain specific string
@@ -994,6 +1244,59 @@ function waitForUrlContains(tabId, urlPart, timeout = 15000) {
 
       if (Date.now() - startTime > timeout) {
         console.log('[K12] URL wait timeout for:', urlPart);
+        resolve(false);
+        return;
+      }
+
+      setTimeout(checkUrl, 500);
+    };
+
+    checkUrl();
+  });
+}
+
+function waitForUrlContainsAny(tabId, urlParts, timeout = 15000) {
+  return new Promise((resolve) => {
+    const startTime = Date.now();
+    const parts = Array.isArray(urlParts) ? urlParts : [urlParts];
+
+    const checkUrl = async () => {
+      try {
+        const tab = await chrome.tabs.get(tabId);
+        if (tab.url && parts.some(part => tab.url.includes(part))) {
+          resolve(true);
+          return;
+        }
+      } catch (e) { }
+
+      if (Date.now() - startTime > timeout) {
+        console.log('[K12] URL wait timeout for:', parts.join(', '));
+        resolve(false);
+        return;
+      }
+
+      setTimeout(checkUrl, 500);
+    };
+
+    checkUrl();
+  });
+}
+
+function waitForUrlNotContains(tabId, urlPart, timeout = 15000) {
+  return new Promise((resolve) => {
+    const startTime = Date.now();
+
+    const checkUrl = async () => {
+      try {
+        const tab = await chrome.tabs.get(tabId);
+        if (tab.url && !tab.url.includes(urlPart)) {
+          resolve(true);
+          return;
+        }
+      } catch (e) { }
+
+      if (Date.now() - startTime > timeout) {
+        console.log('[K12] URL wait timeout for not containing:', urlPart);
         resolve(false);
         return;
       }
@@ -1031,41 +1334,31 @@ function sleep(ms) {
 
 // === Functions to be injected into pages ===
 
-// Injected into temp mail page to create email
+// Injected into temp mail page to create email - MATCHES ACTUAL UI
 function createTempEmail(emailName) {
-  console.log('[K12 Create] Creating email:', emailName);
+  console.log('[K12 Create] === Creating email:', emailName, '===');
 
-  // Find the email input field
-  const allInputs = document.querySelectorAll('input[type="text"], input:not([type])');
-  let emailInput = null;
+  // Step 1: Click on "Create New Email" tab first
+  const tabs = document.querySelectorAll('a, span, div, button, li');
+  let createTabFound = false;
 
-  for (const input of allInputs) {
-    const placeholder = (input.placeholder || '').toLowerCase();
-    if (placeholder.includes('input') || placeholder.includes('name') || !input.readOnly) {
-      emailInput = input;
+  for (const tab of tabs) {
+    const text = tab.textContent.trim().toLowerCase();
+    if (text === 'create new email' || text.includes('create new')) {
+      console.log('[K12 Create] Clicking Create New Email tab');
+      tab.click();
+      createTabFound = true;
       break;
     }
   }
 
-  if (!emailInput) {
-    emailInput = document.querySelector('input[type="text"]:not([readonly])');
+  if (!createTabFound) {
+    console.log('[K12 Create] Create New Email tab not found, proceeding...');
   }
 
-  if (emailInput) {
-    console.log('[K12 Create] Found input, filling:', emailName);
-    emailInput.value = '';
-    emailInput.focus();
-
-    // Type character by character
-    for (const char of emailName) {
-      emailInput.value += char;
-      emailInput.dispatchEvent(new Event('input', { bubbles: true }));
-    }
-    emailInput.dispatchEvent(new Event('change', { bubbles: true }));
-  }
-
-  // Try to select erzi.me domain if there's a dropdown
+  // Step 2: Wait for form to appear, then select domain and fill email
   setTimeout(() => {
+    // Select erzi.me domain from dropdown FIRST
     const domainSelects = document.querySelectorAll('select');
     for (const select of domainSelects) {
       const options = select.querySelectorAll('option');
@@ -1079,79 +1372,137 @@ function createTempEmail(emailName) {
       }
     }
 
-    // Click create button
+    // Step 3: Find and fill the email input
     setTimeout(() => {
-      const buttons = document.querySelectorAll('button');
-      let createBtn = null;
+      // Find the email name input field (left side of @)
+      const allInputs = document.querySelectorAll('input[type="text"], input:not([type])');
+      let emailInput = null;
 
-      for (const btn of buttons) {
-        const text = btn.textContent.toLowerCase().trim();
-        if (text.includes('create') || text.includes('register') || text.includes('submit')) {
-          createBtn = btn;
+      for (const input of allInputs) {
+        if (input.type === 'hidden' || input.readOnly) continue;
+        const placeholder = (input.placeholder || '').toLowerCase();
+        // Look for input that shows "Please Input" or similar
+        if (placeholder.includes('input') || placeholder.includes('please') ||
+          placeholder === '' || placeholder.includes('email')) {
+          emailInput = input;
+          console.log('[K12 Create] Found email input with placeholder:', input.placeholder);
           break;
         }
       }
 
-      if (createBtn) {
-        console.log('[K12 Create] Clicking create button');
-        createBtn.click();
+      // Fallback: first visible text input
+      if (!emailInput) {
+        emailInput = document.querySelector('input[type="text"]:not([readonly])');
       }
-    }, 500);
-  }, 500);
+
+      if (emailInput) {
+        console.log('[K12 Create] Filling email name:', emailName);
+        emailInput.focus();
+        emailInput.value = '';
+
+        // Fill the email name
+        emailInput.value = emailName;
+        emailInput.dispatchEvent(new Event('input', { bubbles: true }));
+        emailInput.dispatchEvent(new Event('change', { bubbles: true }));
+        emailInput.blur();
+
+        console.log('[K12 Create] Filled email input with:', emailInput.value);
+      } else {
+        console.log('[K12 Create] ERROR: Email input not found!');
+      }
+
+      // Step 4: Click "Create New Email" button
+      setTimeout(() => {
+        const buttons = document.querySelectorAll('button');
+        let createBtn = null;
+
+        for (const btn of buttons) {
+          const text = btn.textContent.toLowerCase().trim();
+          // Look specifically for "Create New Email" button text
+          if (text.includes('create new email') || text === 'create' ||
+            text.includes('register') || text.includes('submit')) {
+            createBtn = btn;
+            console.log('[K12 Create] Found button:', text);
+            break;
+          }
+        }
+
+        if (createBtn) {
+          console.log('[K12 Create] Clicking Create New Email button');
+          createBtn.click();
+
+          // Click again after delay to ensure it worked
+          setTimeout(() => {
+            if (document.body.contains(createBtn)) {
+              createBtn.click();
+            }
+          }, 500);
+        } else {
+          console.log('[K12 Create] ERROR: Create button not found!');
+        }
+      }, 300);
+    }, 300);
+  }, 800);
+
+  return true;
 }
 
-// Injected into temp mail to get verification code - finds LATEST code
+// Injected into temp mail to get verification code - MATCHES ACTUAL INBOX UI
 function getVerificationCode() {
-  // Look for all 6-digit codes in the page and return the LATEST one
-  const allCodes = [];
+  console.log('[K12 Code] Looking for verification code in inbox...');
 
-  // First, try to click on the latest email from OpenAI if inbox is showing
-  const emailItems = document.querySelectorAll('[class*="mail"], [class*="item"], tr, li');
-  let foundOpenAIEmail = false;
+  // The inbox shows emails in a list on the left side
+  // Each email item contains text like "Your ChatGPT code is 753326"
+  // When clicked, the email body shows the full content
 
-  for (const item of emailItems) {
-    const text = (item.textContent || '').toLowerCase();
-    if ((text.includes('openai') || text.includes('chatgpt') || text.includes('verification')) && !foundOpenAIEmail) {
-      // This might be the email list item - click to open it
-      item.click();
-      foundOpenAIEmail = true;
-    }
-  }
-
-  // Now search for verification codes in the entire page
+  // Step 1: Look for the code directly in visible text (sidebar or body)
   const pageText = document.body.innerText;
 
-  // Find all patterns like "code is XXXXXX" or "Your code: XXXXXX"
-  const codePatterns = pageText.match(/(?:code|Code|CODE)[:\s]+(?:is\s+)?(\d{6})/gi) || [];
-  for (const match of codePatterns) {
-    const code = match.match(/(\d{6})/)?.[1];
-    if (code) allCodes.push(code);
+  // Pattern: "Your ChatGPT code is XXXXXX" or "code is XXXXXX"
+  const codeMatch = pageText.match(/Your ChatGPT code is\s*(\d{6})/i) ||
+    pageText.match(/code is\s*(\d{6})/i) ||
+    pageText.match(/verification code[:\s]+(\d{6})/i);
+
+  if (codeMatch && codeMatch[1]) {
+    console.log('[K12 Code] Found code in page text:', codeMatch[1]);
+    return codeMatch[1];
   }
 
-  // Also find any 6-digit numbers near OpenAI/ChatGPT keywords
-  const sections = pageText.split(/[\n\r]+/);
-  for (const line of sections) {
-    if (line.toLowerCase().includes('openai') || line.toLowerCase().includes('chatgpt')) {
-      const codes = line.match(/\b(\d{6})\b/g) || [];
-      allCodes.push(...codes);
+  // Step 2: Click on the first OpenAI email if we haven't yet
+  // Look for email items in the left sidebar
+  const allElements = document.querySelectorAll('div, span, li, tr, td');
+
+  for (const el of allElements) {
+    const text = el.textContent || '';
+    // Look for emails that contain OpenAI or ChatGPT or verification code
+    if (text.toLowerCase().includes('openai') ||
+      text.toLowerCase().includes('chatgpt') ||
+      text.includes('Your ChatGPT code')) {
+
+      // Check if this element contains a 6-digit code
+      const codeInElement = text.match(/\b(\d{6})\b/);
+      if (codeInElement) {
+        console.log('[K12 Code] Found code in element:', codeInElement[1]);
+        return codeInElement[1];
+      }
+
+      // If no code found directly, try clicking to open the email
+      if (el.offsetWidth > 50 && el.offsetHeight > 20) {
+        console.log('[K12 Code] Clicking email item to open it...');
+        el.click();
+      }
     }
   }
 
-  // Find standalone 6-digit codes in visible elements that look like codes
-  const codeElements = document.querySelectorAll('[class*="code"], [class*="otp"], [class*="verify"], strong, b, span');
-  for (const el of codeElements) {
-    const text = el.textContent.trim();
-    if (/^\d{6}$/.test(text)) {
-      allCodes.push(text);
-    }
+  // Step 3: Also check for any 6-digit numbers that look like codes
+  const allSixDigit = pageText.match(/\b(\d{6})\b/g);
+  if (allSixDigit && allSixDigit.length > 0) {
+    // Return the first one found (usually the most recent/visible)
+    console.log('[K12 Code] Found 6-digit numbers:', allSixDigit);
+    return allSixDigit[0];
   }
 
-  // Return the LAST (most recent) code found, or null
-  if (allCodes.length > 0) {
-    console.log('[K12] All codes found:', allCodes);
-    return allCodes[allCodes.length - 1]; // Return last (latest) code
-  }
-
+  console.log('[K12 Code] No verification code found yet');
   return null;
 }
 
@@ -1271,20 +1622,39 @@ function fillNameAndBirthday() {
 function clickSignupButton() {
   console.log('[K12] Clicking signup button...');
 
-  // Look for "Sign up" button
+  // Look for "Sign up" or "Sign up for free" button/link
   const signupBtn = Array.from(document.querySelectorAll('a, button')).find(b => {
     const text = b.textContent.toLowerCase().trim();
-    return text.includes('sign up') || text.includes('get started');
+    return text.includes('sign up') || text.includes('get started') || text === 'create account';
   });
 
   if (signupBtn) {
-    console.log('[K12] Found signup button');
+    console.log('[K12] Found signup button:', signupBtn.textContent);
     signupBtn.click();
-  } else {
-    // Try alternate: look for data-testid
-    const altBtn = document.querySelector('[data-testid="login-button"]');
-    if (altBtn) altBtn.click();
+    return true;
   }
+
+  // Try alternate: look for data-testid
+  const altBtn = document.querySelector('[data-testid="login-button"]');
+  if (altBtn) {
+    console.log('[K12] Found alternate signup button');
+    altBtn.click();
+    return true;
+  }
+
+  // Try to find "Sign up for free" link which is sometimes used
+  const signupLink = Array.from(document.querySelectorAll('a')).find(a => {
+    return a.href && a.href.includes('signup');
+  });
+
+  if (signupLink) {
+    console.log('[K12] Found signup link');
+    signupLink.click();
+    return true;
+  }
+
+  console.log('[K12] No signup button found');
+  return false;
 }
 
 // Fill email on auth.openai.com and click continue
@@ -1296,94 +1666,163 @@ function fillEmailAndContinue(email) {
     document.querySelector('input[autocomplete="email"]') ||
     document.querySelector('input[inputmode="email"]');
 
-  if (emailInput) {
-    emailInput.focus();
-    emailInput.value = '';
-
-    // Type character by character
-    for (const char of email) {
-      emailInput.value += char;
-      emailInput.dispatchEvent(new Event('input', { bubbles: true }));
-    }
-    emailInput.dispatchEvent(new Event('change', { bubbles: true }));
-
-    // Click continue after short delay
-    setTimeout(() => {
-      const continueBtn = document.querySelector('button[type="submit"]') ||
-        Array.from(document.querySelectorAll('button')).find(b =>
-          b.textContent.toLowerCase().includes('continue'));
-      if (continueBtn) {
-        console.log('[K12] Clicking continue after email');
-        continueBtn.click();
-      }
-    }, 800);
+  if (!emailInput) {
+    console.log('[K12] No email input found');
+    return false;
   }
+
+  emailInput.focus();
+  emailInput.value = '';
+
+  // Type character by character
+  for (const char of email) {
+    emailInput.value += char;
+    emailInput.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+  emailInput.dispatchEvent(new Event('change', { bubbles: true }));
+  console.log('[K12] Filled email successfully');
+
+  // Click continue after short delay
+  setTimeout(() => {
+    const continueBtn = document.querySelector('button[type="submit"]') ||
+      Array.from(document.querySelectorAll('button')).find(b =>
+        b.textContent.toLowerCase().includes('continue'));
+    if (continueBtn) {
+      console.log('[K12] Clicking continue after email');
+      continueBtn.click();
+      // Double-click for reliability
+      setTimeout(() => continueBtn.click(), 500);
+    }
+  }, 800);
+
+  return true;
 }
 
-// Fill password and click continue - Robust version
+// Fill password and click continue - FAST version
 function fillPasswordAndContinue(password) {
-  console.log('[K12] Filling password');
+  console.log('[K12] Filling password (fast mode)');
 
   const passwordInput = document.querySelector('input[type="password"]') ||
     document.querySelector('input[name="password"]');
 
-  if (passwordInput) {
-    passwordInput.focus();
-    passwordInput.value = '';
-
-    // Type character by character with slight delay to mimic human speed and trigger frameworks
-    let i = 0;
-    const typeChar = () => {
-      if (i < password.length) {
-        passwordInput.value += password[i];
-        passwordInput.dispatchEvent(new Event('input', { bubbles: true }));
-        i++;
-        setTimeout(typeChar, 10);
-      } else {
-        // Trigger final events
-        passwordInput.dispatchEvent(new Event('change', { bubbles: true }));
-        passwordInput.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
-
-        // Wait for button to enable and click
-        checkAndClickContinue(0);
-      }
-    };
-
-    typeChar();
+  if (!passwordInput) {
+    console.log('[K12] No password input found');
+    return false;
   }
+
+  // Focus and fill password all at once (faster)
+  passwordInput.focus();
+  passwordInput.value = password;
+
+  // Dispatch events to trigger validation
+  passwordInput.dispatchEvent(new Event('input', { bubbles: true }));
+  passwordInput.dispatchEvent(new Event('change', { bubbles: true }));
+  passwordInput.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
+  passwordInput.blur();
+
+  console.log('[K12] Filled password successfully');
+
+  // Click continue button immediately
+  setTimeout(() => {
+    const continueBtn = document.querySelector('button[type="submit"]') ||
+      Array.from(document.querySelectorAll('button')).find(b =>
+        b.textContent.toLowerCase().trim() === 'continue');
+
+    if (continueBtn && !continueBtn.disabled) {
+      console.log('[K12] Clicking continue button');
+      continueBtn.click();
+    } else {
+      // Button might be disabled, try fast retries
+      fastClickContinue(0);
+    }
+  }, 100);
+
+  return true;
 }
 
-// Helper to check button state and click
-function checkAndClickContinue(attempts) {
-  if (attempts > 50) return; // Stop after 5 seconds
+// Fast retry for continue button
+function fastClickContinue(attempts) {
+  if (attempts > 20) return; // Max 2 seconds
 
   const continueBtn = document.querySelector('button[type="submit"]') ||
     Array.from(document.querySelectorAll('button')).find(b =>
-      b.textContent.toLowerCase().includes('continue'));
+      b.textContent.toLowerCase().trim() === 'continue');
+
+  if (continueBtn && !continueBtn.disabled) {
+    continueBtn.click();
+    console.log('[K12] Clicked continue button');
+  } else {
+    setTimeout(() => fastClickContinue(attempts + 1), 100);
+  }
+}
+
+// Helper to check button state and click - more robust version
+function checkAndClickContinue(attempts) {
+  if (attempts > 60) {
+    console.log('[K12] Gave up clicking continue after 60 attempts');
+    return;
+  }
+
+  // Try multiple selectors for the continue button
+  let continueBtn = document.querySelector('button[type="submit"]');
+
+  if (!continueBtn) {
+    // Try finding by text content
+    continueBtn = Array.from(document.querySelectorAll('button')).find(b => {
+      const text = b.textContent.toLowerCase().trim();
+      return text === 'continue' || text.includes('continue');
+    });
+  }
+
+  if (!continueBtn) {
+    // Try finding by class or other attributes
+    continueBtn = document.querySelector('button[class*="continue"]') ||
+      document.querySelector('button[data-testid*="continue"]') ||
+      document.querySelector('form button');
+  }
 
   if (continueBtn) {
-    if (!continueBtn.disabled) {
-      console.log('[K12] Clicking enabled allow/continue button');
-      continueBtn.click();
+    console.log('[K12] Found continue button, disabled:', continueBtn.disabled);
 
-      // Double check click worked by trying again if still present
-      setTimeout(() => {
-        if (document.body.contains(continueBtn)) {
-          continueBtn.click();
-        }
-      }, 1000);
-    } else {
-      // Button disabled, re-trigger events on input
-      console.log('[K12] Button disabled, re-triggering events...');
+    if (!continueBtn.disabled) {
+      console.log('[K12] Clicking continue button now');
+
+      // Focus and blur the password input first to trigger any validation
       const passwordInput = document.querySelector('input[type="password"]');
       if (passwordInput) {
+        passwordInput.blur();
+      }
+
+      // Small delay then click
+      setTimeout(() => {
+        continueBtn.focus();
+        continueBtn.click();
+        console.log('[K12] Clicked continue button');
+
+        // Try clicking again after a delay as backup
+        setTimeout(() => {
+          if (document.body.contains(continueBtn)) {
+            console.log('[K12] Double-clicking continue button');
+            continueBtn.click();
+          }
+        }, 800);
+      }, 200);
+    } else {
+      // Button disabled, re-trigger events on input to enable it
+      console.log('[K12] Button disabled, re-triggering validation...');
+      const passwordInput = document.querySelector('input[type="password"]');
+      if (passwordInput) {
+        passwordInput.focus();
         passwordInput.dispatchEvent(new Event('input', { bubbles: true }));
         passwordInput.dispatchEvent(new Event('change', { bubbles: true }));
+        passwordInput.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
+        passwordInput.blur();
       }
-      setTimeout(() => checkAndClickContinue(attempts + 1), 200);
+      setTimeout(() => checkAndClickContinue(attempts + 1), 150);
     }
   } else {
-    setTimeout(() => checkAndClickContinue(attempts + 1), 200);
+    console.log('[K12] Continue button not found, attempt:', attempts);
+    setTimeout(() => checkAndClickContinue(attempts + 1), 150);
   }
 }
 
@@ -1396,49 +1835,95 @@ function fillVerificationCodeAndContinue(code) {
     document.querySelector('input[inputmode="numeric"]') ||
     document.querySelector('input[type="text"]');
 
-  if (codeInput) {
-    codeInput.focus();
-    codeInput.value = '';
-
-    for (const char of code) {
-      codeInput.value += char;
-      codeInput.dispatchEvent(new Event('input', { bubbles: true }));
-    }
-    codeInput.dispatchEvent(new Event('change', { bubbles: true }));
-
-    setTimeout(() => {
-      const continueBtn = document.querySelector('button[type="submit"]') ||
-        Array.from(document.querySelectorAll('button')).find(b =>
-          b.textContent.toLowerCase().includes('continue'));
-      if (continueBtn) {
-        console.log('[K12] Clicking continue after code');
-        continueBtn.click();
-      }
-    }, 800);
+  if (!codeInput) {
+    console.log('[K12] No code input found');
+    return false;
   }
+
+  codeInput.focus();
+  codeInput.value = '';
+
+  for (const char of code) {
+    codeInput.value += char;
+    codeInput.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+  codeInput.dispatchEvent(new Event('change', { bubbles: true }));
+  console.log('[K12] Filled verification code successfully');
+
+  setTimeout(() => {
+    const continueBtn = document.querySelector('button[type="submit"]') ||
+      Array.from(document.querySelectorAll('button')).find(b =>
+        b.textContent.toLowerCase().includes('continue'));
+    if (continueBtn) {
+      console.log('[K12] Clicking continue after code');
+      continueBtn.click();
+      // Double-click for reliability
+      setTimeout(() => continueBtn.click(), 500);
+    }
+  }, 800);
+
+  return true;
 }
 
 // Fill name and birthday, then click continue
 function fillNameAndBirthdayAndContinue() {
   console.log('[K12] Filling name and birthday');
+  let filledSomething = false;
 
-  // Fill name
-  const nameInput = document.querySelector('input[name="name"]') ||
-    document.querySelector('input[placeholder*="name"]') ||
-    document.querySelector('input[type="text"]');
+  // Fill name - try multiple selectors
+  let nameInput = document.querySelector('input[name="name"]') ||
+    document.querySelector('input[placeholder*="name" i]') ||
+    document.querySelector('input[placeholder*="Name"]') ||
+    document.querySelector('input[aria-label*="name" i]');
+
+  // If still not found, try the first text input that's not for birthday/date
+  if (!nameInput) {
+    const textInputs = document.querySelectorAll('input[type="text"]');
+    for (const input of textInputs) {
+      const placeholder = (input.placeholder || '').toLowerCase();
+      if (!placeholder.includes('birthday') && !placeholder.includes('date') && !placeholder.includes('/')) {
+        nameInput = input;
+        break;
+      }
+    }
+  }
 
   if (nameInput && !nameInput.value) {
     const randomName = 'User' + Math.floor(Math.random() * 90000 + 10000);
+    nameInput.focus();
     nameInput.value = randomName;
     nameInput.dispatchEvent(new Event('input', { bubbles: true }));
     nameInput.dispatchEvent(new Event('change', { bubbles: true }));
     console.log('[K12] Filled name:', randomName);
+    filledSomething = true;
   }
 
   // Fill birthday (MM/DD/YYYY format, year 1980-2000)
-  const birthdayInput = document.querySelector('input[placeholder*="Birthday"]') ||
-    document.querySelector('input[name*="birthday"]') ||
-    document.querySelectorAll('input[type="text"]')[1]; // Second text input
+  let birthdayInput = document.querySelector('input[placeholder*="Birthday" i]') ||
+    document.querySelector('input[placeholder*="birthday"]') ||
+    document.querySelector('input[name*="birthday" i]') ||
+    document.querySelector('input[placeholder*="MM/DD/YYYY"]') ||
+    document.querySelector('input[aria-label*="birthday" i]');
+
+  // If still not found, try to find an input that looks like a date field
+  if (!birthdayInput) {
+    const textInputs = document.querySelectorAll('input[type="text"]');
+    for (const input of textInputs) {
+      const placeholder = (input.placeholder || '').toLowerCase();
+      if (placeholder.includes('/') || placeholder.includes('mm') || placeholder.includes('dd')) {
+        birthdayInput = input;
+        break;
+      }
+    }
+  }
+
+  // Last resort: second text input (first is usually name)
+  if (!birthdayInput) {
+    const textInputs = document.querySelectorAll('input[type="text"]');
+    if (textInputs.length > 1) {
+      birthdayInput = textInputs[1];
+    }
+  }
 
   if (birthdayInput && !birthdayInput.value) {
     const month = String(Math.floor(Math.random() * 12) + 1).padStart(2, '0');
@@ -1446,22 +1931,41 @@ function fillNameAndBirthdayAndContinue() {
     const year = String(1980 + Math.floor(Math.random() * 21));
 
     const birthday = `${month}/${day}/${year}`;
+    birthdayInput.focus();
     birthdayInput.value = birthday;
     birthdayInput.dispatchEvent(new Event('input', { bubbles: true }));
     birthdayInput.dispatchEvent(new Event('change', { bubbles: true }));
     console.log('[K12] Filled birthday:', birthday);
+    filledSomething = true;
   }
 
-  // Click continue
+  // Click continue (with retry mechanism)
   setTimeout(() => {
-    const continueBtn = document.querySelector('button[type="submit"]') ||
-      Array.from(document.querySelectorAll('button')).find(b =>
-        b.textContent.toLowerCase().includes('continue'));
-    if (continueBtn) {
-      console.log('[K12] Clicking continue after profile');
-      continueBtn.click();
-    }
+    const clickContinue = (attempts) => {
+      if (attempts > 10) return;
+
+      const continueBtn = document.querySelector('button[type="submit"]') ||
+        Array.from(document.querySelectorAll('button')).find(b =>
+          b.textContent.toLowerCase().includes('continue') || b.textContent.toLowerCase().includes('agree'));
+
+      if (continueBtn && !continueBtn.disabled) {
+        console.log('[K12] Clicking continue after profile');
+        continueBtn.click();
+        // Double-click for reliability
+        setTimeout(() => {
+          if (document.body.contains(continueBtn)) {
+            continueBtn.click();
+          }
+        }, 500);
+      } else {
+        setTimeout(() => clickContinue(attempts + 1), 300);
+      }
+    };
+
+    clickContinue(0);
   }, 1000);
+
+  return filledSomething;
 }
 
 // ========== Fetch Verification Code for Login ==========
@@ -1542,100 +2046,157 @@ async function fetchK12VerificationCode(email, emailName) {
 
 // Injected to login to temp mail with existing email - MUST SWITCH ACCOUNTS
 function loginToTempMail(emailName) {
-  console.log('[K12 Login] Switching to email:', emailName);
+  console.log('[K12 Login] === FORCING LOGIN TO EMAIL:', emailName, '===');
 
-  // Step 1: Click on "User" tab at the top to access login
-  const userTab = Array.from(document.querySelectorAll('span, a, div, button')).find(el => {
-    const text = el.textContent.trim().toLowerCase();
-    return text === 'user' || text.includes('user login');
-  });
+  // Step 1: Click on "Login" tab at the top (the first tab)
+  const tabs = document.querySelectorAll('a, span, div, li');
+  let loginTabClicked = false;
 
-  if (userTab) {
-    console.log('[K12 Login] Found User tab, clicking...');
-    userTab.click();
+  for (const tab of tabs) {
+    const text = tab.textContent.trim();
+    // Look specifically for "Login" tab text (exact match, not "User Login")
+    if (text === 'Login' || text === 'login') {
+      console.log('[K12 Login] Clicking Login tab');
+      tab.click();
+      loginTabClicked = true;
+      break;
+    }
   }
 
-  // Step 2: Wait for login form, then fill and submit
+  if (!loginTabClicked) {
+    console.log('[K12 Login] Login tab not found, trying any login link...');
+  }
+
+  // Step 2: Wait for login form, then fill the input - FASTER
   setTimeout(() => {
-    // Clear any existing value and enter the new email name
+    // Find the input field
     const allInputs = document.querySelectorAll('input[type="text"], input:not([type])');
-    let emailInput = null;
+    let credentialInput = null;
 
     for (const input of allInputs) {
-      const placeholder = (input.placeholder || '').toLowerCase();
-      if (placeholder.includes('input') || placeholder.includes('email') || placeholder.includes('name')) {
-        emailInput = input;
-        break;
-      }
+      if (input.type === 'hidden' || input.readOnly) continue;
+      credentialInput = input;
+      break;
     }
 
-    // If no input found by placeholder, take the first visible text input
-    if (!emailInput) {
-      emailInput = document.querySelector('input[type="text"]:not([readonly])') ||
-        document.querySelector('input:not([type]):not([readonly])');
+    if (credentialInput) {
+      console.log('[K12 Login] Filling email name:', emailName);
+      credentialInput.focus();
+      credentialInput.value = '';
+      credentialInput.value = emailName;
+      credentialInput.dispatchEvent(new Event('input', { bubbles: true }));
+      credentialInput.dispatchEvent(new Event('change', { bubbles: true }));
+      credentialInput.blur();
+      console.log('[K12 Login] Filled with:', credentialInput.value);
     }
 
-    if (emailInput) {
-      console.log('[K12 Login] Found email input, filling:', emailName);
-      emailInput.value = '';
-      emailInput.focus();
-
-      // Type the email name character by character for better compatibility
-      for (const char of emailName) {
-        emailInput.value += char;
-        emailInput.dispatchEvent(new Event('input', { bubbles: true }));
-      }
-      emailInput.dispatchEvent(new Event('change', { bubbles: true }));
-    }
-
-    // Step 3: Click the login/submit button
+    // Step 3: Select erzi.me domain - FASTER
     setTimeout(() => {
-      const buttons = document.querySelectorAll('button');
-      let loginBtn = null;
-
-      for (const btn of buttons) {
-        const text = btn.textContent.toLowerCase().trim();
-        if (text.includes('login') || text.includes('user login') || text.includes('submit')) {
-          loginBtn = btn;
-          break;
+      const selects = document.querySelectorAll('select');
+      for (const select of selects) {
+        for (const opt of select.options) {
+          if (opt.value.includes('erzi.me') || opt.text.includes('erzi.me')) {
+            select.value = opt.value;
+            select.dispatchEvent(new Event('change', { bubbles: true }));
+            console.log('[K12 Login] Selected erzi.me');
+            break;
+          }
         }
       }
 
-      // Also try finding by class
-      if (!loginBtn) {
-        loginBtn = document.querySelector('button[class*="login"]') ||
-          document.querySelector('button[class*="submit"]');
-      }
+      // Step 4: Click the Login button - FASTER
+      setTimeout(() => {
+        const buttons = document.querySelectorAll('button');
+        let loginBtn = null;
 
-      if (loginBtn) {
-        console.log('[K12 Login] Found login button, clicking...');
-        loginBtn.click();
-      }
-    }, 800);
-  }, 1500);
+        for (const btn of buttons) {
+          const text = btn.textContent.toLowerCase().trim();
+          if (text === 'login' || text.includes('login')) {
+            if (!text.includes('user')) {
+              loginBtn = btn;
+              break;
+            }
+          }
+        }
+
+        if (!loginBtn) {
+          for (const btn of buttons) {
+            if (btn.textContent.toLowerCase().includes('login')) {
+              loginBtn = btn;
+              break;
+            }
+          }
+        }
+
+        if (loginBtn) {
+          console.log('[K12 Login] Clicking Login button');
+          loginBtn.click();
+          setTimeout(() => loginBtn.click(), 300);
+        } else {
+          console.log('[K12 Login] ERROR: No Login button found');
+        }
+      }, 200);
+    }, 200);
+  }, 500);
+
+  return true;
 }
 
-// Click refresh button and open latest email
+// Click refresh button and open latest email - MATCHES ACTUAL UI
 function clickRefreshAndOpenEmail() {
-  // Try to click refresh button
-  const refreshBtn = document.querySelector('button[title*="Refresh"]') ||
-    Array.from(document.querySelectorAll('button')).find(b =>
-      b.textContent.toLowerCase().includes('refresh'));
+  console.log('[K12 Refresh] Refreshing inbox...');
 
-  if (refreshBtn) {
-    refreshBtn.click();
+  // First, make sure we're on Mail Box tab
+  const tabs = document.querySelectorAll('a, span, div, button, li');
+  for (const tab of tabs) {
+    const text = tab.textContent.trim().toLowerCase();
+    if (text === 'mail box' || text === 'mailbox' || text === 'inbox') {
+      console.log('[K12 Refresh] Clicking Mail Box tab');
+      tab.click();
+      break;
+    }
   }
 
-  // Try to click on first email in list
+  // Wait a moment then click refresh
   setTimeout(() => {
-    const emailItems = document.querySelectorAll('[class*="mail"], [class*="item"], tr');
-    for (const item of emailItems) {
-      if (item.textContent.toLowerCase().includes('openai') ||
-        item.textContent.toLowerCase().includes('chatgpt') ||
-        item.textContent.toLowerCase().includes('code')) {
-        item.click();
+    // Try to click Refresh button
+    const buttons = document.querySelectorAll('button');
+    let refreshBtn = null;
+
+    for (const btn of buttons) {
+      const text = btn.textContent.toLowerCase().trim();
+      if (text === 'refresh' || text.includes('refresh')) {
+        refreshBtn = btn;
         break;
       }
     }
-  }, 1000);
+
+    // Also try by title attribute
+    if (!refreshBtn) {
+      refreshBtn = document.querySelector('button[title*="Refresh"]');
+    }
+
+    if (refreshBtn) {
+      console.log('[K12 Refresh] Clicking Refresh button');
+      refreshBtn.click();
+    } else {
+      console.log('[K12 Refresh] Refresh button not found');
+    }
+
+    // Wait for emails to load, then click on OpenAI email
+    setTimeout(() => {
+      const emailItems = document.querySelectorAll('[class*="mail"], [class*="item"], tr, li, div');
+
+      for (const item of emailItems) {
+        const text = (item.textContent || '').toLowerCase();
+        // Look for OpenAI/ChatGPT verification emails
+        if ((text.includes('openai') || text.includes('chatgpt') || text.includes('verification')) &&
+          text.includes('code')) {
+          console.log('[K12 Refresh] Found OpenAI email, clicking...');
+          item.click();
+          break;
+        }
+      }
+    }, 1500);
+  }, 500);
 }
