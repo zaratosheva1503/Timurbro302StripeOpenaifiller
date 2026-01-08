@@ -1436,6 +1436,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     // Handle filling input inside Stripe iframe
     fillStripeIframeInput(request.fieldType, request.value);
     sendResponse({ success: true });
+  } else if (request.action === 'start_live_cc_check') {
+    // Handle Live CC Check on teamcsb.com
+    handleLiveCCCheck(request.cardLines);
+    sendResponse({ received: true });
   }
   return true;
 });
@@ -1744,4 +1748,184 @@ async function fillAboutYouPage() {
 
 function showVerificationNotification() {
   showNotification('📩 Use the extension to fetch the verification code!', 'info');
+}
+
+// ========== Live CC Checker Handler (teamcsb.com) ==========
+
+async function handleLiveCCCheck(cardLines) {
+  console.log('[Zarif Live CC] Starting check process on teamcsb.com...');
+
+  // 1. Wait for textarea
+  const textarea = await waitForElement('textarea', 10000).catch(() => null);
+
+  if (!textarea) {
+    console.error('[Zarif Live CC] Textarea not found');
+    return { success: false, error: 'Textarea not found' };
+  }
+
+  // 2. Clear and Input Cards (Nuclear Method)
+  console.log('[Zarif Live CC] Found textarea, inserting cards...');
+  textarea.focus();
+  textarea.select();
+  document.execCommand('insertText', false, cardLines);
+
+  // Verify input
+  await sleep(100);
+  if (!textarea.value || textarea.value.trim() === '') {
+    console.warn('[Zarif Live CC] execCommand failed, fallback to native value setter');
+    const nativeTextAreaValueSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value").set;
+    nativeTextAreaValueSetter.call(textarea, cardLines);
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  // Dispatch events to wake up React
+  textarea.dispatchEvent(new Event('change', { bubbles: true }));
+  textarea.dispatchEvent(new Event('blur', { bubbles: true }));
+
+  await sleep(500);
+
+  // 3. Find and Click Start Button
+  console.log('[Zarif Live CC] Looking for Start Validation button...');
+
+  const findAndClickButton = async () => {
+    const buttons = Array.from(document.querySelectorAll('button'));
+    // Filter for "Start Validation" or just "Start"
+    const startBtn = buttons.find(b => {
+      const t = b.textContent.toLowerCase().trim();
+      return (t.includes('start') && t.includes('validation')) ||
+        (t.includes('start') && !t.includes('stop'));
+    });
+
+    if (startBtn) {
+      console.log('[Zarif Live CC] Found button:', startBtn.textContent);
+      startBtn.scrollIntoView({ behavior: 'auto', block: 'center' });
+      await sleep(100);
+
+      // Try multiple click methods
+      startBtn.focus();
+      startBtn.click();
+      startBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+
+      // Also try clicking parent
+      if (startBtn.parentElement) startBtn.parentElement.click();
+
+      return true;
+    }
+    return false;
+  };
+
+  // Retry clicking a few times
+  for (let i = 0; i < 5; i++) {
+    if (await findAndClickButton()) {
+      console.log(`[Zarif Live CC] Clicked button (attempt ${i + 1})`);
+      await sleep(800); // Wait between clicks if we retry
+    } else {
+      await sleep(500);
+    }
+  }
+
+  // 4. Start Extracting Results (Polling)
+  let maxAttempts = 120; // 2 minutes
+  let attempts = 0;
+
+  // Clear any existing interval if we restart
+  if (window.liveCCPollInterval) clearInterval(window.liveCCPollInterval);
+
+  window.liveCCPollInterval = setInterval(() => {
+    attempts++;
+
+    // Check for results
+    const result = extractLiveCCResults();
+
+    // Send progress/result to background
+    try {
+      if (result.done || attempts >= maxAttempts) {
+        clearInterval(window.liveCCPollInterval);
+        chrome.runtime.sendMessage({
+          action: 'liveccExtractResults', // Match the background.js handler
+          results: { result } // Wrap to match expected format
+        });
+        console.log('[Zarif Live CC] Complete:', result);
+      } else {
+        // Just log progress internally, background.js polls independently? 
+        // Actually background.js expects a message or we can send one.
+        // Let's rely on background.js polling OR send explicit progress
+        // But background.js currently polls using executeScript. We will change that.
+      }
+    } catch (e) {
+      // Connection lost (tab closed?)
+      console.log('[Zarif Live CC] Connection lost, stopping poll');
+      clearInterval(window.liveCCPollInterval);
+    }
+
+  }, 1000);
+}
+
+function extractLiveCCResults() {
+  const result = {
+    done: false,
+    liveCards: [],
+    total: 0,
+    live: 0,
+    dead: 0
+  };
+
+  // Parse stats
+  const statDivs = document.querySelectorAll('div');
+  for (const div of statDivs) {
+    const text = div.textContent.trim().toLowerCase();
+    if (text === 'total' || text === 'valid' || text === 'live' || text === 'dead') {
+      const parent = div.closest('div[class]');
+      if (parent) {
+        const numDiv = parent.querySelector('div:not(:first-child)') || parent.querySelector('span');
+        if (numDiv) {
+          const num = parseInt(numDiv.textContent);
+          if (!isNaN(num)) {
+            if (text === 'total' || text === 'valid') result.total = num;
+            else if (text === 'live') result.live = num;
+            else if (text === 'dead') result.dead = num;
+          }
+        }
+      }
+    }
+  }
+
+  // Check completion
+  if (result.total > 0 && (result.live + result.dead >= result.total)) {
+    result.done = true;
+  }
+
+  // Extract LIVE cards
+  // Strategy: Look for the specific "Live" section or cards
+  // We'll iterate all card elements again
+  const cardElements = document.querySelectorAll('[class*="card"], [class*="result"]');
+  const liveCards = [];
+
+  for (const el of cardElements) {
+    const text = el.textContent.toLowerCase();
+    if (text.includes('live') && !text.includes('dead')) {
+      const cardText = el.textContent;
+      const cardMatch = cardText.match(/(\d{16})/);
+      const expMatch = cardText.match(/(\d{2}\/\d{2,4})/);
+      const cvvMatch = cardText.match(/CVV[:\s]*(\d{3})/i) || cardText.match(/(\d{3})(?!\d)/);
+
+      if (cardMatch) {
+        liveCards.push({
+          cardNumber: cardMatch[1],
+          expiry: expMatch ? expMatch[1] : 'N/A',
+          cvv: cvvMatch ? cvvMatch[1] : 'N/A'
+        });
+      }
+    }
+  }
+
+  // If we found live count > 0 but no cards, try broader search
+  if (result.live > 0 && liveCards.length === 0) {
+    // Try to find any text looking like a card that is NOT in a red/dead container
+    // This is hard to do generically without seeing DOM.
+    // But let's look for "Approved" or "Charged" text
+  }
+
+  result.liveCards = liveCards;
+  return result;
 }

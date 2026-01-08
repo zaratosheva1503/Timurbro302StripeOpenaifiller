@@ -2315,322 +2315,37 @@ async function checkLiveCCCards(bin, country, expiryMonth, expiryYear) {
 
     sendLiveCCProgress(25, 'Pasting cards...');
 
-    // Format cards for TeamCSB (card|mm/yy|cvv format)
+    // Format cards
     const cardLines = cards.map(c => {
       const year2digit = c.expiry_year.slice(-2);
       return `${c.card_number}|${c.expiry_month}/${year2digit}|${c.cvv}`;
     }).join('\n');
 
-    // Inject script to paste cards and click start
-    await chrome.scripting.executeScript({
-      target: { tabId: liveccState.checkerTabId },
-      func: pasteCardsAndStart,
-      args: [cardLines]
-    });
+    sendLiveCCProgress(20, 'Opening checker page...');
 
-    sendLiveCCProgress(30, 'Clicking Start Validation...');
+    // Wait for page to load
+    await new Promise(resolve => setTimeout(resolve, 3000));
 
-    // Wait a bit then click start button again to be sure
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    sendLiveCCProgress(30, 'Starting validation process...');
 
-    // Separate script to click the start button with full event simulation
-    await chrome.scripting.executeScript({
-      target: { tabId: liveccState.checkerTabId },
-      func: () => {
-        const buttons = document.querySelectorAll('button');
-        let startBtn = null;
-
-        for (const btn of buttons) {
-          const text = btn.textContent.toLowerCase().trim();
-          if ((text.includes('start') && text.includes('validation')) ||
-            (text.includes('start') && !text.includes('stop'))) {
-            startBtn = btn;
-            break;
-          }
-        }
-
-        if (!startBtn) {
-          console.log('[Live CC] Start button not found for click');
-          return false;
-        }
-
-        console.log('[Live CC] Simulating full click sequence...');
-
-        // Get button position for realistic event coordinates
-        const rect = startBtn.getBoundingClientRect();
-        const x = rect.left + rect.width / 2;
-        const y = rect.top + rect.height / 2;
-
-        // Create and dispatch full sequence of events
-        const eventOptions = {
-          bubbles: true,
-          cancelable: true,
-          view: window,
-          clientX: x,
-          clientY: y,
-          screenX: x,
-          screenY: y,
-          button: 0,
-          buttons: 1
-        };
-
-        // Pointer events for modern frameworks
-        startBtn.dispatchEvent(new PointerEvent('pointerdown', eventOptions));
-        startBtn.dispatchEvent(new PointerEvent('pointerup', eventOptions));
-
-        // Mouse events
-        startBtn.dispatchEvent(new MouseEvent('mousedown', eventOptions));
-        startBtn.dispatchEvent(new MouseEvent('mouseup', eventOptions));
-        startBtn.dispatchEvent(new MouseEvent('click', eventOptions));
-
-        // Also try focus + enter as fallback
-        startBtn.focus();
-        startBtn.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
-        startBtn.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', keyCode: 13, bubbles: true }));
-
-        // Native click as final attempt
-        startBtn.click();
-
-        console.log('[Live CC] Full click sequence completed');
-        return true;
-      }
-    });
-
-    sendLiveCCProgress(35, 'Starting validation...');
-
-    // Wait a bit for the click to register
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    sendLiveCCProgress(40, 'Validating cards...');
-
-    // Poll for results
-    let attempts = 0;
-    const maxAttempts = 60; // 60 attempts * 2 seconds = 2 minutes max
-
-    const checkResults = async () => {
-      if (!liveccState.isChecking) {
-        console.log('[Live CC] Stopped by user during polling');
-        return;
-      }
-
-      attempts++;
-      const progress = 40 + Math.min(50, attempts);
-      sendLiveCCProgress(progress, `Checking results... (${attempts}/${maxAttempts})`);
-
-      try {
-        const results = await chrome.scripting.executeScript({
-          target: { tabId: liveccState.checkerTabId },
-          func: extractLiveCards
-        });
-
-        if (results && results[0] && results[0].result) {
-          const { done, liveCards, total, live, dead } = results[0].result;
-
-          if (done || live > 0 || dead > 0) {
-            sendLiveCCProgress(95, `Found ${live} live cards out of ${total}`);
-
-            if (done || attempts >= maxAttempts) {
-              sendLiveCCProgress(100, 'Complete!');
-              handleLiveCCResults(liveCards, liveccState.checkerTabId);
-              return;
-            }
-          }
-        }
-
-        if (attempts < maxAttempts) {
-          setTimeout(checkResults, 2000);
-        } else {
-          // Timeout - extract whatever we have
-          const finalResults = await chrome.scripting.executeScript({
-            target: { tabId: liveccState.checkerTabId },
-            func: extractLiveCards
-          });
-
-          if (finalResults && finalResults[0] && finalResults[0].result) {
-            handleLiveCCResults(finalResults[0].result.liveCards, liveccState.checkerTabId);
-          } else {
-            sendLiveCCError('Timeout waiting for results');
-            stopLiveCCCheck();
-          }
-        }
-      } catch (error) {
-        console.error('[Live CC] Error checking results:', error);
-        if (attempts < maxAttempts) {
-          setTimeout(checkResults, 2000);
-        } else {
-          sendLiveCCError('Error checking results');
-          stopLiveCCCheck();
-        }
-      }
-    };
-
-    // Start polling after initial wait
-    setTimeout(checkResults, 3000);
-
+    // Send message to content script to start the process
+    try {
+      await chrome.tabs.sendMessage(liveccState.checkerTabId, {
+        action: 'start_live_cc_check',
+        cardLines: cardLines
+      });
+      console.log('[Live CC] Sent start command to content script');
+    } catch (e) {
+      console.error('[Live CC] Failed to send message to content script:', e);
+      // Fallback: reload and try once more? or just error
+      sendLiveCCError('Could not communicate with checker page. Please try again.');
+      stopLiveCCCheck();
+    }
   } catch (error) {
     console.error('[Live CC] Error:', error);
     sendLiveCCError(error.message || 'Unknown error occurred');
     stopLiveCCCheck();
   }
 }
-
-// Function to paste cards and click start (runs in page context)
-function pasteCardsAndStart(cardLines) {
-  console.log('[Live CC] Pasting cards with EXEC COMMAND (Nuclear Option)...');
-
-  // Find textarea
-  const textarea = document.querySelector('textarea');
-  if (!textarea) {
-    console.error('[Live CC] Textarea not found');
-    return { success: false, error: 'Textarea not found' };
-  }
-
-  // NUCLEAR OPTION: execCommand simulates native user typing/pasting
-  try {
-    textarea.focus();
-    textarea.select(); // Select any existing text
-
-    // This is the most reliable way to trigger React/Angular/Vue inputs
-    const success = document.execCommand('insertText', false, cardLines);
-    console.log('[Live CC] execCommand success:', success);
-
-    if (!success) {
-      // Fallback if execCommand fails (rare)
-      console.warn('[Live CC] execCommand failed, trying fallback...');
-      const nativeTextAreaValueSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value").set;
-      nativeTextAreaValueSetter.call(textarea, cardLines);
-      textarea.dispatchEvent(new Event('input', { bubbles: true }));
-    }
-
-    // Dispatch events just in case
-    textarea.dispatchEvent(new Event('change', { bubbles: true }));
-    textarea.dispatchEvent(new Event('blur', { bubbles: true }));
-
-  } catch (e) {
-    console.error('[Live CC] Input failed:', e);
-    textarea.value = cardLines;
-  }
-
-  console.log('[Live CC] Pasted. Waiting for button enablement...');
-
-  // Wait a moment
-  setTimeout(() => {
-
-    // Find button and click it + parent
-    const attemptClick = (retryCount = 0) => {
-      const buttons = document.querySelectorAll('button');
-      let startBtn = null;
-
-      for (const btn of buttons) {
-        const text = btn.textContent.toLowerCase().trim();
-        if ((text.includes('start') && text.includes('validation')) ||
-          (text.includes('start') && !text.includes('stop'))) {
-          startBtn = btn;
-          break;
-        }
-      }
-
-      if (startBtn) {
-        console.log(`[Live CC] Attempt #${retryCount + 1}: Clicking Start Button (Native Click)...`);
-
-        startBtn.scrollIntoView({ behavior: 'auto', block: 'center' });
-
-        // Native click is usually sufficient if the input state is correct
-        startBtn.click();
-
-        // Safety: Dispatch explicit click event
-        const clickEvent = new MouseEvent('click', {
-          view: window,
-          bubbles: true,
-          cancelable: true
-        });
-        startBtn.dispatchEvent(clickEvent);
-
-        if (retryCount < 4) {
-          setTimeout(() => attemptClick(retryCount + 1), 800);
-        }
-
-      } else {
-        console.error('[Live CC] Start button not found');
-      }
-    };
-
-    // Start clicking sooner now that input is instant
-    attemptClick();
-
-  }, 300);
-
-  return { success: true };
-}
-
-// Function to extract live cards (runs in page context)
-function extractLiveCards() {
-  console.log('[Live CC] Extracting results...');
-
-  // Check counters
-  const counters = document.querySelectorAll('[class*="stat"], [class*="count"], [class*="result"]');
-  let total = 0, live = 0, dead = 0;
-
-  // Try to find the counter elements
-  const statDivs = document.querySelectorAll('div');
-  for (const div of statDivs) {
-    const text = div.textContent.trim().toLowerCase();
-    if (text === 'total' || text === 'valid' || text === 'live' || text === 'dead') {
-      const parent = div.closest('div[class]');
-      if (parent) {
-        const numDiv = parent.querySelector('div:not(:first-child)') || parent.querySelector('span');
-        if (numDiv) {
-          const num = parseInt(numDiv.textContent);
-          if (!isNaN(num)) {
-            if (text === 'total' || text === 'valid') total = num;
-            else if (text === 'live') live = num;
-            else if (text === 'dead') dead = num;
-          }
-        }
-      }
-    }
-  }
-
-  // Check if done (total = live + dead)
-  const done = total > 0 && (live + dead === total);
-
-  // Extract live cards
-  const liveCards = [];
-  const cardElements = document.querySelectorAll('[class*="card"], [class*="result"]');
-
-  for (const el of cardElements) {
-    const text = el.textContent.toLowerCase();
-    // Check if this is a LIVE card
-    if (text.includes('live') && !text.includes('dead')) {
-      // Try to extract card details
-      const cardText = el.textContent;
-
-      // Look for card number pattern (16 digits)
-      const cardMatch = cardText.match(/(\d{16})/);
-      const expMatch = cardText.match(/(\d{2}\/\d{2,4})/);
-      const cvvMatch = cardText.match(/CVV[:\s]*(\d{3})/i) || cardText.match(/(\d{3})(?!\d)/);
-
-      if (cardMatch) {
-        liveCards.push({
-          cardNumber: cardMatch[1],
-          expiry: expMatch ? expMatch[1] : 'N/A',
-          cvv: cvvMatch ? cvvMatch[1] : 'N/A'
-        });
-      }
-    }
-  }
-
-  // Also try clicking Live filter to see only live cards
-  const filterBtns = document.querySelectorAll('button');
-  for (const btn of filterBtns) {
-    if (btn.textContent.toLowerCase().includes('live') && !btn.textContent.toLowerCase().includes('dead')) {
-      // This is the Live filter button - we might want to click it
-      break;
-    }
-  }
-
-  console.log('[Live CC] Results:', { done, total, live, dead, liveCardsFound: liveCards.length });
-
-  return { done, liveCards, total, live, dead };
-}
-
+// Note: pasteCardsAndStart and extractLiveCards functions are no longer needed in background.js
+// as they have been moved to content.js for better reliability.
