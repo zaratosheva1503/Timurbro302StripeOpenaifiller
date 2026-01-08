@@ -1801,25 +1801,66 @@ async function handleLiveCCCheck(cardLines) {
       startBtn.scrollIntoView({ behavior: 'auto', block: 'center' });
       await sleep(200);
 
-      // Get button coordinates for trusted click
-      const rect = startBtn.getBoundingClientRect();
-      const x = Math.round(rect.left + rect.width / 2);
-      const y = Math.round(rect.top + rect.height / 2);
+      // NUCLEAR OPTION: Try to find and invoke React's internal onClick handler directly
+      let reactClicked = false;
 
-      console.log('[Zarif Live CC] Requesting TRUSTED click at:', x, y);
+      // Find React internal props key
+      const reactPropsKey = Object.keys(startBtn).find(key =>
+        key.startsWith('__reactProps$') || key.startsWith('__reactFiber$')
+      );
 
-      // Request trusted click from background.js (uses Chrome Debugger API)
-      try {
-        const response = await chrome.runtime.sendMessage({
-          action: 'trustedClick',
-          x: x,
-          y: y
-        });
-        console.log('[Zarif Live CC] Trusted click response:', response);
-      } catch (e) {
-        console.error('[Zarif Live CC] Trusted click failed:', e);
-        // Fallback to regular click
-        startBtn.click();
+      if (reactPropsKey) {
+        console.log('[Zarif Live CC] Found React key:', reactPropsKey);
+        const props = startBtn[reactPropsKey];
+
+        // Try to find onClick in props chain
+        if (props && props.onClick) {
+          console.log('[Zarif Live CC] INVOKING React onClick DIRECTLY!');
+          props.onClick({
+            preventDefault: () => { },
+            stopPropagation: () => { },
+            target: startBtn,
+            currentTarget: startBtn,
+            nativeEvent: new MouseEvent('click')
+          });
+          reactClicked = true;
+        } else if (props && props.children && props.children.props && props.children.props.onClick) {
+          console.log('[Zarif Live CC] INVOKING nested React onClick!');
+          props.children.props.onClick({ preventDefault: () => { }, stopPropagation: () => { } });
+          reactClicked = true;
+        }
+      }
+
+      // Also try __reactFiber$ for function components
+      const fiberKey = Object.keys(startBtn).find(key => key.startsWith('__reactFiber$'));
+      if (fiberKey && !reactClicked) {
+        console.log('[Zarif Live CC] Found React Fiber:', fiberKey);
+        let fiber = startBtn[fiberKey];
+
+        // Walk up the fiber tree to find onClick
+        while (fiber) {
+          if (fiber.memoizedProps && fiber.memoizedProps.onClick) {
+            console.log('[Zarif Live CC] INVOKING Fiber onClick!');
+            fiber.memoizedProps.onClick({ preventDefault: () => { }, stopPropagation: () => { }, target: startBtn });
+            reactClicked = true;
+            break;
+          }
+          fiber = fiber.return;
+        }
+      }
+
+      if (!reactClicked) {
+        console.log('[Zarif Live CC] No React handler found, trying debugger click...');
+        // Fallback to debugger click
+        const rect = startBtn.getBoundingClientRect();
+        const x = Math.round(rect.left + rect.width / 2);
+        const y = Math.round(rect.top + rect.height / 2);
+
+        try {
+          await chrome.runtime.sendMessage({ action: 'trustedClick', x, y });
+        } catch (e) {
+          startBtn.click();
+        }
       }
 
       return true;
