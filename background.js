@@ -2333,22 +2333,66 @@ async function checkLiveCCCards(bin, country, expiryMonth, expiryYear) {
     // Wait a bit then click start button again to be sure
     await new Promise(resolve => setTimeout(resolve, 1000));
 
-    // Separate script to click the start button
+    // Separate script to click the start button with full event simulation
     await chrome.scripting.executeScript({
       target: { tabId: liveccState.checkerTabId },
       func: () => {
         const buttons = document.querySelectorAll('button');
+        let startBtn = null;
+
         for (const btn of buttons) {
           const text = btn.textContent.toLowerCase().trim();
           if ((text.includes('start') && text.includes('validation')) ||
             (text.includes('start') && !text.includes('stop'))) {
-            console.log('[Live CC] Second attempt: clicking Start button');
-            btn.click();
-            btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-            return true;
+            startBtn = btn;
+            break;
           }
         }
-        return false;
+
+        if (!startBtn) {
+          console.log('[Live CC] Start button not found for click');
+          return false;
+        }
+
+        console.log('[Live CC] Simulating full click sequence...');
+
+        // Get button position for realistic event coordinates
+        const rect = startBtn.getBoundingClientRect();
+        const x = rect.left + rect.width / 2;
+        const y = rect.top + rect.height / 2;
+
+        // Create and dispatch full sequence of events
+        const eventOptions = {
+          bubbles: true,
+          cancelable: true,
+          view: window,
+          clientX: x,
+          clientY: y,
+          screenX: x,
+          screenY: y,
+          button: 0,
+          buttons: 1
+        };
+
+        // Pointer events for modern frameworks
+        startBtn.dispatchEvent(new PointerEvent('pointerdown', eventOptions));
+        startBtn.dispatchEvent(new PointerEvent('pointerup', eventOptions));
+
+        // Mouse events
+        startBtn.dispatchEvent(new MouseEvent('mousedown', eventOptions));
+        startBtn.dispatchEvent(new MouseEvent('mouseup', eventOptions));
+        startBtn.dispatchEvent(new MouseEvent('click', eventOptions));
+
+        // Also try focus + enter as fallback
+        startBtn.focus();
+        startBtn.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+        startBtn.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', keyCode: 13, bubbles: true }));
+
+        // Native click as final attempt
+        startBtn.click();
+
+        console.log('[Live CC] Full click sequence completed');
+        return true;
       }
     });
 
