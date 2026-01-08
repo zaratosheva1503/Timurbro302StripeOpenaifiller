@@ -28,7 +28,8 @@
         "https://pay.google.com/*",
         "https://wallet.google.com/*",
         "https://em.bjedu.tech/*",
-        "https://auth.openai.com/*"
+        "https://auth.openai.com/*",
+        "https://teamcsb.com/*"
       ],
       "all_frames": true,
       "js": [

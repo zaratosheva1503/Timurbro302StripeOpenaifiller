@@ -388,6 +388,21 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     fetchK12VerificationCode(request.email, request.emailName);
     sendResponse({ success: true });
     return true;
+  } else if (request.action === 'checkLiveCC') {
+    checkLiveCCCards(request.bin, request.country, request.expiryMonth, request.expiryYear);
+    sendResponse({ success: true });
+    return true;
+  } else if (request.action === 'stopLiveCCCheck') {
+    stopLiveCCCheck();
+    sendResponse({ success: true });
+    return true;
+  } else if (request.action === 'liveccExtractResults') {
+    // Handle results from content script
+    if (sender.tab) {
+      handleLiveCCResults(request.liveCards, sender.tab.id);
+    }
+    sendResponse({ success: true });
+    return true;
   }
 });
 
@@ -2200,3 +2215,298 @@ function clickRefreshAndOpenEmail() {
     }, 1500);
   }, 500);
 }
+
+// ========== LIVE CC CHECKER ==========
+
+const LIVE_CC_CHECKER_URL = 'https://teamcsb.com/live-cc-checker/';
+
+let liveccState = {
+  isChecking: false,
+  checkerTabId: null,
+  cards: [],
+  liveCards: []
+};
+
+// Send progress update to popup
+function sendLiveCCProgress(percent, status) {
+  chrome.runtime.sendMessage({
+    action: 'liveccProgress',
+    percent: percent,
+    status: status
+  }).catch(() => { });
+}
+
+// Send completion to popup
+function sendLiveCCComplete(liveCards) {
+  chrome.runtime.sendMessage({
+    action: 'liveccComplete',
+    liveCards: liveCards
+  }).catch(() => { });
+}
+
+// Send error to popup
+function sendLiveCCError(message) {
+  chrome.runtime.sendMessage({
+    action: 'liveccError',
+    message: message
+  }).catch(() => { });
+}
+
+// Stop Live CC Check
+function stopLiveCCCheck() {
+  liveccState.isChecking = false;
+  if (liveccState.checkerTabId) {
+    chrome.tabs.remove(liveccState.checkerTabId).catch(() => { });
+    liveccState.checkerTabId = null;
+  }
+}
+
+// Handle results from content script
+function handleLiveCCResults(liveCards, tabId) {
+  console.log('[Live CC] Received results:', liveCards);
+  liveccState.liveCards = liveCards || [];
+  liveccState.isChecking = false;
+
+  // Close the checker tab
+  if (tabId) {
+    setTimeout(() => {
+      chrome.tabs.remove(tabId).catch(() => { });
+    }, 1000);
+  }
+
+  sendLiveCCComplete(liveccState.liveCards);
+}
+
+// Main Live CC checking function
+async function checkLiveCCCards(bin, country, expiryMonth, expiryYear) {
+  if (liveccState.isChecking) {
+    sendLiveCCError('Already checking. Please wait.');
+    return;
+  }
+
+  liveccState.isChecking = true;
+  liveccState.liveCards = [];
+
+  try {
+    sendLiveCCProgress(5, 'Generating cards...');
+
+    // Generate 100 cards using Luhn
+    const expMonth = expiryMonth || (country === 'IN' ? INDIA_EXPIRY_MONTH : HARDCODED_EXPIRY_MONTH);
+    const expYear = expiryYear || (country === 'IN' ? INDIA_EXPIRY_YEAR : HARDCODED_EXPIRY_YEAR);
+    const cleanedBin = bin.replace(/x/gi, '').replace(/\s+/g, '').trim();
+
+    const cards = generateCardsWithLuhn(cleanedBin, 100, expMonth, expYear);
+    liveccState.cards = cards;
+
+    console.log('[Live CC] Generated', cards.length, 'cards');
+    sendLiveCCProgress(15, 'Opening checker page...');
+
+    // Open TeamCSB checker in a new tab
+    const tab = await chrome.tabs.create({ url: LIVE_CC_CHECKER_URL, active: false });
+    liveccState.checkerTabId = tab.id;
+
+    // Wait for page to load
+    await new Promise(resolve => setTimeout(resolve, 3000));
+
+    if (!liveccState.isChecking) {
+      console.log('[Live CC] Stopped by user');
+      return;
+    }
+
+    sendLiveCCProgress(25, 'Pasting cards...');
+
+    // Format cards for TeamCSB (card|mm/yy|cvv format)
+    const cardLines = cards.map(c => {
+      const year2digit = c.expiry_year.slice(-2);
+      return `${c.card_number}|${c.expiry_month}/${year2digit}|${c.cvv}`;
+    }).join('\n');
+
+    // Inject script to paste cards and click start
+    await chrome.scripting.executeScript({
+      target: { tabId: liveccState.checkerTabId },
+      func: pasteCardsAndStart,
+      args: [cardLines]
+    });
+
+    sendLiveCCProgress(35, 'Starting validation...');
+
+    // Wait a bit for the click to register
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    sendLiveCCProgress(40, 'Validating cards...');
+
+    // Poll for results
+    let attempts = 0;
+    const maxAttempts = 60; // 60 attempts * 2 seconds = 2 minutes max
+
+    const checkResults = async () => {
+      if (!liveccState.isChecking) {
+        console.log('[Live CC] Stopped by user during polling');
+        return;
+      }
+
+      attempts++;
+      const progress = 40 + Math.min(50, attempts);
+      sendLiveCCProgress(progress, `Checking results... (${attempts}/${maxAttempts})`);
+
+      try {
+        const results = await chrome.scripting.executeScript({
+          target: { tabId: liveccState.checkerTabId },
+          func: extractLiveCards
+        });
+
+        if (results && results[0] && results[0].result) {
+          const { done, liveCards, total, live, dead } = results[0].result;
+
+          if (done || live > 0 || dead > 0) {
+            sendLiveCCProgress(95, `Found ${live} live cards out of ${total}`);
+
+            if (done || attempts >= maxAttempts) {
+              sendLiveCCProgress(100, 'Complete!');
+              handleLiveCCResults(liveCards, liveccState.checkerTabId);
+              return;
+            }
+          }
+        }
+
+        if (attempts < maxAttempts) {
+          setTimeout(checkResults, 2000);
+        } else {
+          // Timeout - extract whatever we have
+          const finalResults = await chrome.scripting.executeScript({
+            target: { tabId: liveccState.checkerTabId },
+            func: extractLiveCards
+          });
+
+          if (finalResults && finalResults[0] && finalResults[0].result) {
+            handleLiveCCResults(finalResults[0].result.liveCards, liveccState.checkerTabId);
+          } else {
+            sendLiveCCError('Timeout waiting for results');
+            stopLiveCCCheck();
+          }
+        }
+      } catch (error) {
+        console.error('[Live CC] Error checking results:', error);
+        if (attempts < maxAttempts) {
+          setTimeout(checkResults, 2000);
+        } else {
+          sendLiveCCError('Error checking results');
+          stopLiveCCCheck();
+        }
+      }
+    };
+
+    // Start polling after initial wait
+    setTimeout(checkResults, 3000);
+
+  } catch (error) {
+    console.error('[Live CC] Error:', error);
+    sendLiveCCError(error.message || 'Unknown error occurred');
+    stopLiveCCCheck();
+  }
+}
+
+// Function to paste cards and click start (runs in page context)
+function pasteCardsAndStart(cardLines) {
+  console.log('[Live CC] Pasting cards...');
+
+  // Find textarea
+  const textarea = document.querySelector('textarea');
+  if (!textarea) {
+    console.error('[Live CC] Textarea not found');
+    return false;
+  }
+
+  // Clear and paste
+  textarea.value = cardLines;
+  textarea.dispatchEvent(new Event('input', { bubbles: true }));
+  textarea.dispatchEvent(new Event('change', { bubbles: true }));
+
+  console.log('[Live CC] Pasted', cardLines.split('\n').length, 'cards');
+
+  // Find and click Start Validation button
+  setTimeout(() => {
+    const buttons = document.querySelectorAll('button');
+    for (const btn of buttons) {
+      if (btn.textContent.toLowerCase().includes('start')) {
+        console.log('[Live CC] Clicking Start button');
+        btn.click();
+        break;
+      }
+    }
+  }, 500);
+
+  return true;
+}
+
+// Function to extract live cards (runs in page context)
+function extractLiveCards() {
+  console.log('[Live CC] Extracting results...');
+
+  // Check counters
+  const counters = document.querySelectorAll('[class*="stat"], [class*="count"], [class*="result"]');
+  let total = 0, live = 0, dead = 0;
+
+  // Try to find the counter elements
+  const statDivs = document.querySelectorAll('div');
+  for (const div of statDivs) {
+    const text = div.textContent.trim().toLowerCase();
+    if (text === 'total' || text === 'valid' || text === 'live' || text === 'dead') {
+      const parent = div.closest('div[class]');
+      if (parent) {
+        const numDiv = parent.querySelector('div:not(:first-child)') || parent.querySelector('span');
+        if (numDiv) {
+          const num = parseInt(numDiv.textContent);
+          if (!isNaN(num)) {
+            if (text === 'total' || text === 'valid') total = num;
+            else if (text === 'live') live = num;
+            else if (text === 'dead') dead = num;
+          }
+        }
+      }
+    }
+  }
+
+  // Check if done (total = live + dead)
+  const done = total > 0 && (live + dead === total);
+
+  // Extract live cards
+  const liveCards = [];
+  const cardElements = document.querySelectorAll('[class*="card"], [class*="result"]');
+
+  for (const el of cardElements) {
+    const text = el.textContent.toLowerCase();
+    // Check if this is a LIVE card
+    if (text.includes('live') && !text.includes('dead')) {
+      // Try to extract card details
+      const cardText = el.textContent;
+
+      // Look for card number pattern (16 digits)
+      const cardMatch = cardText.match(/(\d{16})/);
+      const expMatch = cardText.match(/(\d{2}\/\d{2,4})/);
+      const cvvMatch = cardText.match(/CVV[:\s]*(\d{3})/i) || cardText.match(/(\d{3})(?!\d)/);
+
+      if (cardMatch) {
+        liveCards.push({
+          cardNumber: cardMatch[1],
+          expiry: expMatch ? expMatch[1] : 'N/A',
+          cvv: cvvMatch ? cvvMatch[1] : 'N/A'
+        });
+      }
+    }
+  }
+
+  // Also try clicking Live filter to see only live cards
+  const filterBtns = document.querySelectorAll('button');
+  for (const btn of filterBtns) {
+    if (btn.textContent.toLowerCase().includes('live') && !btn.textContent.toLowerCase().includes('dead')) {
+      // This is the Live filter button - we might want to click it
+      break;
+    }
+  }
+
+  console.log('[Live CC] Results:', { done, total, live, dead, liveCardsFound: liveCards.length });
+
+  return { done, liveCards, total, live, dead };
+}
+

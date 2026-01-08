@@ -805,3 +805,192 @@ body {
 .btn-use-card:active {
   transform: translateY(0);
 }
+
+/* ========== Live CC Tab Styles ========== */
+
+.livecc-header {
+  text-align: center;
+  margin-bottom: 15px;
+  padding: 12px;
+  background: linear-gradient(135deg, #1a3a2a 0%, #152525 100%);
+  border-radius: 8px;
+  border: 1px solid #2a5a4a;
+}
+
+.livecc-header h3 {
+  font-size: 14px;
+  font-weight: 700;
+  color: #4ade80;
+  margin-bottom: 4px;
+  text-shadow: 0 0 10px rgba(74, 222, 128, 0.3);
+}
+
+.livecc-header p {
+  font-size: 10px;
+  color: #808080;
+}
+
+.btn-livecc {
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%) !important;
+  box-shadow: 0 4px 15px rgba(34, 197, 94, 0.3);
+}
+
+.btn-livecc:hover {
+  background: linear-gradient(135deg, #16a34a 0%, #15803d 100%) !important;
+  box-shadow: 0 6px 20px rgba(34, 197, 94, 0.5);
+}
+
+.livecc-progress-section {
+  margin: 15px 0;
+  padding: 12px;
+  background: #1a1a1a;
+  border-radius: 8px;
+  border: 1px solid #3d3d3d;
+}
+
+.progress-bar-container {
+  width: 100%;
+  height: 8px;
+  background: #2a2a2a;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #22c55e, #4ade80);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.livecc-progress-bar {
+  animation: progressPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes progressPulse {
+
+  0%,
+  100% {
+    box-shadow: 0 0 10px rgba(74, 222, 128, 0.3);
+  }
+
+  50% {
+    box-shadow: 0 0 20px rgba(74, 222, 128, 0.6);
+  }
+}
+
+.progress-text {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: #a0a0a0;
+}
+
+.progress-text span:first-child {
+  font-weight: 700;
+  color: #4ade80;
+}
+
+.livecc-results {
+  margin-top: 15px;
+  padding: 12px;
+  background: #1a2a1a;
+  border-radius: 8px;
+  border: 1px solid #2a5a3a;
+}
+
+.livecc-results h4 {
+  font-size: 12px;
+  font-weight: 700;
+  color: #4ade80;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.livecc-cards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.livecc-card-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px;
+  background: linear-gradient(135deg, #1a3a2a 0%, #152525 100%);
+  border-radius: 6px;
+  border: 1px solid #2a5a4a;
+  transition: all 0.3s ease;
+}
+
+.livecc-card-item.live {
+  border-color: #22c55e;
+  box-shadow: 0 0 10px rgba(34, 197, 94, 0.2);
+}
+
+.livecc-card-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(34, 197, 94, 0.3);
+}
+
+.livecc-card-info {
+  flex: 1;
+}
+
+.livecc-card-number {
+  font-size: 11px;
+  font-weight: 700;
+  color: #4ade80;
+  font-family: 'Consolas', 'Monaco', monospace;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.livecc-card-details {
+  font-size: 9px;
+  color: #808080;
+  display: flex;
+  gap: 10px;
+}
+
+.livecc-card-details span {
+  background: #1a2a1a;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  border: 1px solid #2a4a3a;
+}
+
+.btn-copy-card {
+  background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+  color: white;
+  border: none;
+  padding: 6px 10px;
+  border-radius: 5px;
+  font-size: 9px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.btn-copy-card:hover {
+  background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+  transform: translateY(-1px);
+}
+
+.livecc-info {
+  margin-top: 15px;
+  background: linear-gradient(135deg, #1a3a2a 0%, #152525 100%);
+  border-color: #2a5a4a;
+}
+
+.livecc-info h4 {
+  color: #4ade80;
+}

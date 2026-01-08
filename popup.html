@@ -42,6 +42,7 @@
     <!-- Tab Navigation -->
     <div class="tab-navigation">
       <button class="tab-btn active" data-tab="generate">Generate Now</button>
+      <button class="tab-btn" data-tab="livecc">Live CC</button>
       <button class="tab-btn" data-tab="precards">Pre-Cards</button>
     </div>
 
@@ -210,6 +211,105 @@
           <li>Click "Use" button next to any card</li>
           <li>Card details will auto-fill instantly!</li>
           <li>Regenerate cards anytime with new BIN</li>
+        </ol>
+      </div>
+    </div>
+
+    <!-- Tab Content: Live CC -->
+    <div class="content tab-content" id="liveccTab">
+      <div class="livecc-header">
+        <h3>💳 Live CC Checker</h3>
+        <p>Generate cards and check which ones are LIVE</p>
+      </div>
+
+      <div class="input-group">
+        <label for="liveccBin">Enter BIN:</label>
+        <input type="text" id="liveccBin" placeholder="552461" maxlength="16">
+      </div>
+
+      <div class="input-group">
+        <label for="liveccCountrySelect">Billing Country:</label>
+        <select id="liveccCountrySelect" class="method-select">
+          <option value="KR">🇰🇷 South Korea</option>
+          <option value="IN" selected>🇮🇳 India (Default)</option>
+          <option value="GB">🇬🇧 United Kingdom</option>
+          <option value="US">🇺🇸 United States</option>
+        </select>
+      </div>
+
+      <div class="input-group">
+        <label>Custom Expiry (Optional):</label>
+        <div class="expiry-row">
+          <select id="liveccExpiryMonth" class="expiry-select">
+            <option value="">Month</option>
+            <option value="01">01</option>
+            <option value="02">02</option>
+            <option value="03" selected>03</option>
+            <option value="04">04</option>
+            <option value="05">05</option>
+            <option value="06">06</option>
+            <option value="07">07</option>
+            <option value="08">08</option>
+            <option value="09">09</option>
+            <option value="10">10</option>
+            <option value="11">11</option>
+            <option value="12">12</option>
+          </select>
+          <span class="expiry-separator">/</span>
+          <select id="liveccExpiryYear" class="expiry-select">
+            <option value="">Year</option>
+            <option value="2025">2025</option>
+            <option value="2026">2026</option>
+            <option value="2027">2027</option>
+            <option value="2028">2028</option>
+            <option value="2029" selected>2029</option>
+            <option value="2030">2030</option>
+            <option value="2031">2031</option>
+            <option value="2032">2032</option>
+            <option value="2033">2033</option>
+            <option value="2034">2034</option>
+            <option value="2035">2035</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="livecc-progress-section" id="liveccProgressSection" style="display: none;">
+        <div class="progress-bar-container">
+          <div class="progress-bar livecc-progress-bar" id="liveccProgressBar" style="width: 0%"></div>
+        </div>
+        <div class="progress-text">
+          <span id="liveccProgressPercent">0%</span>
+          <span id="liveccProgressStatus">Initializing...</span>
+        </div>
+      </div>
+
+      <div class="status" id="liveccStatus">
+        <p>Generate and check cards for LIVE status</p>
+      </div>
+
+      <button id="liveccBtn" class="btn btn-primary btn-livecc">
+        🔍 Check Live CC
+      </button>
+
+      <button id="liveccStopBtn" class="btn btn-secondary" style="display: none;">
+        ⏹ Stop Checking
+      </button>
+
+      <div class="livecc-results" id="liveccResults" style="display: none;">
+        <h4>💚 Live Cards Found:</h4>
+        <div id="liveccCardsList" class="livecc-cards-list">
+          <p class="no-cards-message">No live cards found</p>
+        </div>
+      </div>
+
+      <div class="info livecc-info">
+        <h4>ℹ️ How It Works:</h4>
+        <ol>
+          <li>Enter BIN and select country</li>
+          <li>Click "Check Live CC"</li>
+          <li>Extension generates 100 cards</li>
+          <li>Validates against TeamCSB checker</li>
+          <li>Only LIVE cards are displayed</li>
         </ol>
       </div>
     </div>

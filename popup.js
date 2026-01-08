@@ -5,6 +5,11 @@ let binInput, generateBtn, clearBtn, statusDiv, savedBinDiv, savedBinValue, gene
 let precardBinInput, generatePrecardsBtn, clearPrecardsBtn, precardStatusDiv, precardsList, precardMethodSelect, precardCountrySelect;
 let tabBtns, tabContents;
 
+// Live CC elements
+let liveccBinInput, liveccBtn, liveccStopBtn, liveccStatusDiv, liveccCountrySelect, liveccExpiryMonth, liveccExpiryYear;
+let liveccProgressSection, liveccProgressBar, liveccProgressPercent, liveccProgressStatus;
+let liveccResults, liveccCardsList;
+
 
 document.addEventListener('DOMContentLoaded', function () {
   binInput = document.getElementById('bin');
@@ -29,9 +34,25 @@ document.addEventListener('DOMContentLoaded', function () {
   tabBtns = document.querySelectorAll('.tab-btn');
   tabContents = document.querySelectorAll('.tab-content');
 
+  // Live CC elements
+  liveccBinInput = document.getElementById('liveccBin');
+  liveccBtn = document.getElementById('liveccBtn');
+  liveccStopBtn = document.getElementById('liveccStopBtn');
+  liveccStatusDiv = document.getElementById('liveccStatus');
+  liveccCountrySelect = document.getElementById('liveccCountrySelect');
+  liveccExpiryMonth = document.getElementById('liveccExpiryMonth');
+  liveccExpiryYear = document.getElementById('liveccExpiryYear');
+  liveccProgressSection = document.getElementById('liveccProgressSection');
+  liveccProgressBar = document.getElementById('liveccProgressBar');
+  liveccProgressPercent = document.getElementById('liveccProgressPercent');
+  liveccProgressStatus = document.getElementById('liveccProgressStatus');
+  liveccResults = document.getElementById('liveccResults');
+  liveccCardsList = document.getElementById('liveccCardsList');
+
   initializeTabs();
   initializeGenerateTab();
   initializePrecardsTab();
+  initializeLiveCCTab();
   loadInitialData();
   loadVersion();
 
@@ -80,6 +101,9 @@ function initializeTabs() {
       } else if (tabName === 'precards') {
         document.getElementById('precardsTab').classList.add('active');
         loadPrecards();
+      } else if (tabName === 'livecc') {
+        document.getElementById('liveccTab').classList.add('active');
+        updateLiveCCDefaultsForCountry();
       }
     });
   });
@@ -95,6 +119,7 @@ function loadInitialData() {
   savedBinDiv.style.display = 'block';
   savedBinValue.textContent = INDIA_DEFAULT_BIN;
   precardBinInput.value = INDIA_DEFAULT_BIN;
+  if (liveccBinInput) liveccBinInput.value = INDIA_DEFAULT_BIN;
 
   // Update storage with new BIN
   chrome.storage.local.set({
@@ -310,6 +335,12 @@ async function usePrecard(cardIndex) {
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'updateStatus') {
     updateStatus(request.message, request.type);
+  } else if (request.action === 'liveccProgress') {
+    updateLiveCCProgress(request.percent, request.status);
+  } else if (request.action === 'liveccComplete') {
+    showLiveCCResults(request.liveCards);
+  } else if (request.action === 'liveccError') {
+    showLiveCCError(request.message);
   }
 });
 
@@ -321,3 +352,150 @@ function copyToClipboard(text) {
   });
 }
 
+// ========== Live CC Tab Functions ==========
+
+function updateLiveCCDefaultsForCountry() {
+  if (!liveccCountrySelect || !liveccBinInput) return;
+
+  const selectedCountry = liveccCountrySelect.value;
+  if (selectedCountry === 'IN') {
+    liveccBinInput.value = INDIA_DEFAULT_BIN;
+    if (liveccExpiryMonth) liveccExpiryMonth.value = '03';
+    if (liveccExpiryYear) liveccExpiryYear.value = '2029';
+  } else {
+    liveccBinInput.value = DEFAULT_BIN;
+    if (liveccExpiryMonth) liveccExpiryMonth.value = '01';
+    if (liveccExpiryYear) liveccExpiryYear.value = '2033';
+  }
+}
+
+function initializeLiveCCTab() {
+  if (!liveccBtn) return;
+
+  // Country change listener
+  if (liveccCountrySelect) {
+    liveccCountrySelect.addEventListener('change', updateLiveCCDefaultsForCountry);
+  }
+
+  liveccBtn.addEventListener('click', startLiveCCCheck);
+
+  if (liveccStopBtn) {
+    liveccStopBtn.addEventListener('click', () => {
+      chrome.runtime.sendMessage({ action: 'stopLiveCCCheck' });
+      liveccStopBtn.style.display = 'none';
+      liveccBtn.style.display = 'block';
+      liveccBtn.disabled = false;
+      updateLiveCCStatus('Checking stopped', 'error');
+    });
+  }
+}
+
+function startLiveCCCheck() {
+  const bin = cleanBin(liveccBinInput.value);
+
+  if (!bin) {
+    updateLiveCCStatus('Please enter a BIN number', 'error');
+    return;
+  }
+
+  if (bin.length < 6) {
+    updateLiveCCStatus('BIN must be at least 6 digits', 'error');
+    return;
+  }
+
+  // Disable button and show progress
+  liveccBtn.disabled = true;
+  liveccBtn.textContent = '⏳ Checking...';
+  liveccProgressSection.style.display = 'block';
+  liveccResults.style.display = 'none';
+  liveccStopBtn.style.display = 'block';
+
+  updateLiveCCProgress(0, 'Initializing...');
+
+  // Send message to background to start checking
+  chrome.runtime.sendMessage({
+    action: 'checkLiveCC',
+    bin: bin,
+    country: liveccCountrySelect.value,
+    expiryMonth: liveccExpiryMonth.value,
+    expiryYear: liveccExpiryYear.value
+  }, (response) => {
+    if (chrome.runtime.lastError) {
+      showLiveCCError('Error: ' + chrome.runtime.lastError.message);
+    }
+  });
+}
+
+function updateLiveCCStatus(message, type = '') {
+  if (liveccStatusDiv) {
+    liveccStatusDiv.textContent = message;
+    liveccStatusDiv.className = 'status ' + type;
+  }
+}
+
+function updateLiveCCProgress(percent, status) {
+  if (liveccProgressBar) {
+    liveccProgressBar.style.width = percent + '%';
+  }
+  if (liveccProgressPercent) {
+    liveccProgressPercent.textContent = percent + '%';
+  }
+  if (liveccProgressStatus) {
+    liveccProgressStatus.textContent = status;
+  }
+}
+
+function showLiveCCResults(liveCards) {
+  liveccProgressSection.style.display = 'none';
+  liveccBtn.disabled = false;
+  liveccBtn.textContent = '🔍 Check Live CC';
+  liveccBtn.style.display = 'block';
+  liveccStopBtn.style.display = 'none';
+
+  if (!liveCards || liveCards.length === 0) {
+    updateLiveCCStatus('No live cards found', 'error');
+    liveccResults.style.display = 'block';
+    liveccCardsList.innerHTML = '<p class="no-cards-message">No live cards found in this batch. Try again!</p>';
+    return;
+  }
+
+  updateLiveCCStatus(`✅ Found ${liveCards.length} LIVE cards!`, 'success');
+  liveccResults.style.display = 'block';
+
+  let html = '';
+  liveCards.forEach((card, index) => {
+    html += `
+      <div class="livecc-card-item live">
+        <div class="livecc-card-info">
+          <div class="livecc-card-number">${card.cardNumber}</div>
+          <div class="livecc-card-details">
+            <span>Exp: ${card.expiry}</span>
+            <span>CVV: ${card.cvv}</span>
+          </div>
+        </div>
+        <button class="btn-copy-card" data-card="${card.cardNumber}|${card.expiry}|${card.cvv}">📋 Copy</button>
+      </div>
+    `;
+  });
+
+  liveccCardsList.innerHTML = html;
+
+  // Add copy handlers
+  document.querySelectorAll('.btn-copy-card').forEach(btn => {
+    btn.addEventListener('click', function () {
+      const cardData = this.getAttribute('data-card');
+      copyToClipboard(cardData);
+      this.textContent = '✓ Copied!';
+      setTimeout(() => { this.textContent = '📋 Copy'; }, 1500);
+    });
+  });
+}
+
+function showLiveCCError(message) {
+  liveccProgressSection.style.display = 'none';
+  liveccBtn.disabled = false;
+  liveccBtn.textContent = '🔍 Check Live CC';
+  liveccBtn.style.display = 'block';
+  liveccStopBtn.style.display = 'none';
+  updateLiveCCStatus('❌ ' + message, 'error');
+}
