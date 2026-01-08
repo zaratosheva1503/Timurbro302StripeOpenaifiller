@@ -2476,7 +2476,7 @@ async function checkLiveCCCards(bin, country, expiryMonth, expiryYear) {
 
 // Function to paste cards and click start (runs in page context)
 function pasteCardsAndStart(cardLines) {
-  console.log('[Live CC] Pasting cards...');
+  console.log('[Live CC] Pasting cards with React setter...');
 
   // Find textarea
   const textarea = document.querySelector('textarea');
@@ -2485,47 +2485,53 @@ function pasteCardsAndStart(cardLines) {
     return { success: false, error: 'Textarea not found' };
   }
 
-  // Clear and paste
-  textarea.value = cardLines;
-  textarea.dispatchEvent(new Event('input', { bubbles: true }));
-  textarea.dispatchEvent(new Event('change', { bubbles: true }));
+  // FORCE REACT TO RECOGNIZE THE UPDATE
+  try {
+    const nativeTextAreaValueSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value").set;
+    nativeTextAreaValueSetter.call(textarea, cardLines);
 
-  console.log('[Live CC] Pasted', cardLines.split('\n').length, 'cards');
-
-  // Find and click Start Validation button immediately
-  const buttons = document.querySelectorAll('button');
-  let startBtn = null;
-
-  for (const btn of buttons) {
-    const text = btn.textContent.toLowerCase().trim();
-    console.log('[Live CC] Button found:', text);
-    if (text.includes('start') && text.includes('validation')) {
-      startBtn = btn;
-      break;
-    }
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    textarea.dispatchEvent(new Event('change', { bubbles: true }));
+  } catch (e) {
+    console.error('[Live CC] React setter failed, falling back to standard:', e);
+    textarea.value = cardLines;
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
   }
 
-  // Fallback: try just "start"
-  if (!startBtn) {
+  console.log('[Live CC] Pasted cards, now upgrading button interaction...');
+
+  // Give React a moment to process the input event
+  setTimeout(() => {
+    const buttons = document.querySelectorAll('button');
+    let startBtn = null;
+
     for (const btn of buttons) {
       const text = btn.textContent.toLowerCase().trim();
-      if (text.includes('start') && !text.includes('stop')) {
+      if ((text.includes('start') && text.includes('validation')) ||
+        (text.includes('start') && !text.includes('stop'))) {
         startBtn = btn;
         break;
       }
     }
-  }
 
-  if (startBtn) {
-    console.log('[Live CC] Found Start button, clicking...');
-    startBtn.click();
-    // Try multiple click methods
-    startBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-    return { success: true, clicked: true };
-  } else {
-    console.error('[Live CC] Start button not found');
-    return { success: true, clicked: false, error: 'Start button not found' };
-  }
+    if (startBtn) {
+      console.log('[Live CC] Found Start button, simulating user interaction...');
+
+      // Focus element
+      startBtn.focus();
+
+      // Dispatch events in realistic order
+      const opts = { bubbles: true, cancelable: true, view: window };
+      startBtn.dispatchEvent(new MouseEvent('mousedown', opts));
+      startBtn.dispatchEvent(new MouseEvent('mouseup', opts));
+      startBtn.click();
+
+    } else {
+      console.error('[Live CC] Start button not found during paste phase');
+    }
+  }, 100);
+
+  return { success: true };
 }
 
 // Function to extract live cards (runs in page context)
