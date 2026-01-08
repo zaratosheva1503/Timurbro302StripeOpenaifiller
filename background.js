@@ -2476,7 +2476,7 @@ async function checkLiveCCCards(bin, country, expiryMonth, expiryYear) {
 
 // Function to paste cards and click start (runs in page context)
 function pasteCardsAndStart(cardLines) {
-  console.log('[Live CC] Pasting cards with v3 Strategy...');
+  console.log('[Live CC] Pasting cards with EXEC COMMAND (Nuclear Option)...');
 
   // Find textarea
   const textarea = document.querySelector('textarea');
@@ -2485,34 +2485,38 @@ function pasteCardsAndStart(cardLines) {
     return { success: false, error: 'Textarea not found' };
   }
 
-  // FORCE REACT TO RECOGNIZE THE UPDATE
+  // NUCLEAR OPTION: execCommand simulates native user typing/pasting
   try {
-    const nativeTextAreaValueSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value").set;
-    nativeTextAreaValueSetter.call(textarea, cardLines);
+    textarea.focus();
+    textarea.select(); // Select any existing text
 
-    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    // This is the most reliable way to trigger React/Angular/Vue inputs
+    const success = document.execCommand('insertText', false, cardLines);
+    console.log('[Live CC] execCommand success:', success);
+
+    if (!success) {
+      // Fallback if execCommand fails (rare)
+      console.warn('[Live CC] execCommand failed, trying fallback...');
+      const nativeTextAreaValueSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value").set;
+      nativeTextAreaValueSetter.call(textarea, cardLines);
+      textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    // Dispatch events just in case
     textarea.dispatchEvent(new Event('change', { bubbles: true }));
     textarea.dispatchEvent(new Event('blur', { bubbles: true }));
-    textarea.blur();
 
   } catch (e) {
-    console.error('[Live CC] React setter failed:', e);
+    console.error('[Live CC] Input failed:', e);
     textarea.value = cardLines;
   }
 
-  console.log('[Live CC] Pasted. Trying Enter key and Parent clicks...');
+  console.log('[Live CC] Pasted. Waiting for button enablement...');
 
   // Wait a moment
   setTimeout(() => {
 
-    // STRATEGY 1: Enter Key on Textarea (often submits forms)
-    textarea.focus();
-    const enterEvent = new KeyboardEvent('keydown', {
-      bubbles: true, cancelable: true, key: 'Enter', code: 'Enter', keyCode: 13
-    });
-    textarea.dispatchEvent(enterEvent);
-
-    // STRATEGY 2: Find button and click it + parent
+    // Find button and click it + parent
     const attemptClick = (retryCount = 0) => {
       const buttons = document.querySelectorAll('button');
       let startBtn = null;
@@ -2527,18 +2531,20 @@ function pasteCardsAndStart(cardLines) {
       }
 
       if (startBtn) {
-        console.log(`[Live CC] Attempt #${retryCount + 1}: Clicking Button AND Parent...`);
+        console.log(`[Live CC] Attempt #${retryCount + 1}: Clicking Start Button (Native Click)...`);
 
         startBtn.scrollIntoView({ behavior: 'auto', block: 'center' });
 
-        // Click the button
+        // Native click is usually sufficient if the input state is correct
         startBtn.click();
-        startBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
 
-        // Click the PARENT (sometimes the listener is on the wrapper)
-        if (startBtn.parentElement) {
-          startBtn.parentElement.click();
-        }
+        // Safety: Dispatch explicit click event
+        const clickEvent = new MouseEvent('click', {
+          view: window,
+          bubbles: true,
+          cancelable: true
+        });
+        startBtn.dispatchEvent(clickEvent);
 
         if (retryCount < 4) {
           setTimeout(() => attemptClick(retryCount + 1), 800);
@@ -2549,9 +2555,10 @@ function pasteCardsAndStart(cardLines) {
       }
     };
 
-    setTimeout(attemptClick, 200);
+    // Start clicking sooner now that input is instant
+    attemptClick();
 
-  }, 500);
+  }, 300);
 
   return { success: true };
 }
