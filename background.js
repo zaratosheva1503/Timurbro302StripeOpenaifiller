@@ -2476,7 +2476,7 @@ async function checkLiveCCCards(bin, country, expiryMonth, expiryYear) {
 
 // Function to paste cards and click start (runs in page context)
 function pasteCardsAndStart(cardLines) {
-  console.log('[Live CC] Pasting cards with React setter + Blur...');
+  console.log('[Live CC] Pasting cards with v3 Strategy...');
 
   // Find textarea
   const textarea = document.querySelector('textarea');
@@ -2492,21 +2492,27 @@ function pasteCardsAndStart(cardLines) {
 
     textarea.dispatchEvent(new Event('input', { bubbles: true }));
     textarea.dispatchEvent(new Event('change', { bubbles: true }));
-
-    // CRITICAL: Blur to trigger any "onBlur" validation
     textarea.dispatchEvent(new Event('blur', { bubbles: true }));
     textarea.blur();
 
   } catch (e) {
-    console.error('[Live CC] React setter failed, falling back to standard:', e);
+    console.error('[Live CC] React setter failed:', e);
     textarea.value = cardLines;
-    textarea.dispatchEvent(new Event('input', { bubbles: true }));
   }
 
-  console.log('[Live CC] Pasted cards, waiting for validation...');
+  console.log('[Live CC] Pasted. Trying Enter key and Parent clicks...');
 
-  // Wait longer for React to validate the input
+  // Wait a moment
   setTimeout(() => {
+
+    // STRATEGY 1: Enter Key on Textarea (often submits forms)
+    textarea.focus();
+    const enterEvent = new KeyboardEvent('keydown', {
+      bubbles: true, cancelable: true, key: 'Enter', code: 'Enter', keyCode: 13
+    });
+    textarea.dispatchEvent(enterEvent);
+
+    // STRATEGY 2: Find button and click it + parent
     const attemptClick = (retryCount = 0) => {
       const buttons = document.querySelectorAll('button');
       let startBtn = null;
@@ -2521,35 +2527,31 @@ function pasteCardsAndStart(cardLines) {
       }
 
       if (startBtn) {
-        console.log(`[Live CC] Found Start button, click attempt #${retryCount + 1}...`);
+        console.log(`[Live CC] Attempt #${retryCount + 1}: Clicking Button AND Parent...`);
 
-        // Scroll into view
         startBtn.scrollIntoView({ behavior: 'auto', block: 'center' });
 
-        // Focus
-        startBtn.focus();
-
-        // Dispatch events
-        const opts = { bubbles: true, cancelable: true, view: window };
-        startBtn.dispatchEvent(new MouseEvent('mousedown', opts));
-        startBtn.dispatchEvent(new MouseEvent('mouseup', opts));
+        // Click the button
         startBtn.click();
+        startBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
 
-        // Retry a few times if needed
-        if (retryCount < 3) {
+        // Click the PARENT (sometimes the listener is on the wrapper)
+        if (startBtn.parentElement) {
+          startBtn.parentElement.click();
+        }
+
+        if (retryCount < 4) {
           setTimeout(() => attemptClick(retryCount + 1), 800);
-        } else {
-          console.log('[Live CC] Finished click attempts');
         }
 
       } else {
-        console.error('[Live CC] Start button not found during click phase');
+        console.error('[Live CC] Start button not found');
       }
     };
 
-    attemptClick();
+    setTimeout(attemptClick, 200);
 
-  }, 500); // Increased wait time to 500ms
+  }, 500);
 
   return { success: true };
 }
