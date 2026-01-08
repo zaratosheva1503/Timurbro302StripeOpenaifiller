@@ -2328,6 +2328,30 @@ async function checkLiveCCCards(bin, country, expiryMonth, expiryYear) {
       args: [cardLines]
     });
 
+    sendLiveCCProgress(30, 'Clicking Start Validation...');
+
+    // Wait a bit then click start button again to be sure
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    // Separate script to click the start button
+    await chrome.scripting.executeScript({
+      target: { tabId: liveccState.checkerTabId },
+      func: () => {
+        const buttons = document.querySelectorAll('button');
+        for (const btn of buttons) {
+          const text = btn.textContent.toLowerCase().trim();
+          if ((text.includes('start') && text.includes('validation')) ||
+            (text.includes('start') && !text.includes('stop'))) {
+            console.log('[Live CC] Second attempt: clicking Start button');
+            btn.click();
+            btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+            return true;
+          }
+        }
+        return false;
+      }
+    });
+
     sendLiveCCProgress(35, 'Starting validation...');
 
     // Wait a bit for the click to register
@@ -2414,7 +2438,7 @@ function pasteCardsAndStart(cardLines) {
   const textarea = document.querySelector('textarea');
   if (!textarea) {
     console.error('[Live CC] Textarea not found');
-    return false;
+    return { success: false, error: 'Textarea not found' };
   }
 
   // Clear and paste
@@ -2424,19 +2448,40 @@ function pasteCardsAndStart(cardLines) {
 
   console.log('[Live CC] Pasted', cardLines.split('\n').length, 'cards');
 
-  // Find and click Start Validation button
-  setTimeout(() => {
-    const buttons = document.querySelectorAll('button');
+  // Find and click Start Validation button immediately
+  const buttons = document.querySelectorAll('button');
+  let startBtn = null;
+
+  for (const btn of buttons) {
+    const text = btn.textContent.toLowerCase().trim();
+    console.log('[Live CC] Button found:', text);
+    if (text.includes('start') && text.includes('validation')) {
+      startBtn = btn;
+      break;
+    }
+  }
+
+  // Fallback: try just "start"
+  if (!startBtn) {
     for (const btn of buttons) {
-      if (btn.textContent.toLowerCase().includes('start')) {
-        console.log('[Live CC] Clicking Start button');
-        btn.click();
+      const text = btn.textContent.toLowerCase().trim();
+      if (text.includes('start') && !text.includes('stop')) {
+        startBtn = btn;
         break;
       }
     }
-  }, 500);
+  }
 
-  return true;
+  if (startBtn) {
+    console.log('[Live CC] Found Start button, clicking...');
+    startBtn.click();
+    // Try multiple click methods
+    startBtn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
+    return { success: true, clicked: true };
+  } else {
+    console.error('[Live CC] Start button not found');
+    return { success: true, clicked: false, error: 'Start button not found' };
+  }
 }
 
 // Function to extract live cards (runs in page context)
