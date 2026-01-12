@@ -2080,13 +2080,13 @@ if (window.location.hostname === 'chatgpt.com' || window.location.hostname === '
   console.log('[Zarif] ChatGPT page detected - watching for onboarding popups to skip...');
 
   const skipOnboardingPopups = () => {
-    // Look for "Skip" button (usually at the bottom of onboarding dialogs)
+    // Look for skip/continue buttons on onboarding dialogs
     const buttons = document.querySelectorAll('button');
     for (const btn of buttons) {
       const btnText = (btn.textContent || btn.innerText || '').trim().toLowerCase();
-      // Match "Skip" button specifically
-      if (btnText === 'skip') {
-        console.log('[Zarif] Found "Skip" button on onboarding popup, clicking...');
+      // Match "Skip", "Skip Tour", or "Continue" buttons
+      if (btnText === 'skip' || btnText === 'skip tour' || btnText === 'continue') {
+        console.log('[Zarif] Found "' + btnText + '" button on onboarding popup, clicking...');
         btn.click();
         return true;
       }
