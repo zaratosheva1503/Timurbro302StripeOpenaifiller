@@ -632,7 +632,8 @@ async function createOpenAIAccount() {
       email: emailResult.email,
       password: credResult.password,
       fullName: credResult.fullName,
-      birthday: credResult.birthday
+      birthday: credResult.birthday,
+      timestamp: Date.now() // Add timestamp for expiry check
     };
 
     // Store credentials for cross-page persistence
@@ -780,10 +781,19 @@ function loadSavedAccounts() {
       savedAccountsList.innerHTML = accounts.map((acc, index) => `
         <div class="saved-account-item">
           <div class="account-info">
-            <div class="account-email">${acc.email}</div>
-            <div class="account-password">Password: ${acc.password}</div>
+            <div class="account-row-mini">
+              <span class="account-email" title="${acc.email}">${acc.email}</span>
+              <button class="btn-copy-mini" data-copy="${acc.email}" title="Copy Email">📋</button>
+            </div>
+            <div class="account-row-mini">
+              <span class="account-password">Pass: ${acc.password}</span>
+              <button class="btn-copy-mini" data-copy="${acc.password}" title="Copy Password">📋</button>
+            </div>
           </div>
-          <button class="btn-fetch-account-code" data-index="${index}" ${acc.login && acc.domain ? '' : 'disabled title="No inbox data"'}>📨 Fetch Code</button>
+          <div class="account-actions">
+            <button class="btn-fetch-account-code" data-index="${index}" ${acc.login && acc.domain ? '' : 'disabled title="No inbox data"'}>📨 Fetch</button>
+            <button class="btn-delete-account" data-index="${index}" title="Delete Account">🗑️</button>
+          </div>
         </div>
       `).join('');
 
@@ -792,6 +802,25 @@ function loadSavedAccounts() {
         btn.addEventListener('click', async function () {
           const accountIndex = parseInt(this.getAttribute('data-index'));
           await fetchCodeForAccount(accountIndex, this);
+        });
+      });
+
+      // Attach event listeners for Copy buttons
+      document.querySelectorAll('.btn-copy-mini').forEach(btn => {
+        btn.addEventListener('click', function () {
+          const text = this.getAttribute('data-copy');
+          copyToClipboard(text);
+          const originalText = this.textContent;
+          this.textContent = '✓';
+          setTimeout(() => { this.textContent = originalText; }, 1500);
+        });
+      });
+
+      // Attach event listeners for Delete buttons
+      document.querySelectorAll('.btn-delete-account').forEach(btn => {
+        btn.addEventListener('click', function () {
+          const accountIndex = parseInt(this.getAttribute('data-index'));
+          deleteSavedAccount(accountIndex);
         });
       });
     } else if (savedAccountsSection) {
@@ -803,6 +832,17 @@ function loadSavedAccounts() {
 // Alias for backward compatibility
 function loadCreatedAccounts() {
   loadSavedAccounts();
+}
+
+async function deleteSavedAccount(index) {
+  const result = await chrome.storage.local.get(['savedOpenAIAccounts']);
+  let accounts = result.savedOpenAIAccounts || [];
+
+  if (index >= 0 && index < accounts.length) {
+    accounts.splice(index, 1);
+    await chrome.storage.local.set({ savedOpenAIAccounts: accounts });
+    loadSavedAccounts();
+  }
 }
 
 async function fetchCodeForAccount(accountIndex, button) {

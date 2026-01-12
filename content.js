@@ -2090,7 +2090,19 @@ if (window.location.hostname === 'chatgpt.com' ||
   // Load any pending credentials and auto-fill
   chrome.storage.local.get(['openaiPendingCredentials'], (result) => {
     if (result.openaiPendingCredentials) {
-      openaiCredentials = result.openaiPendingCredentials;
+      const data = result.openaiPendingCredentials;
+
+      // Check if credentials are fresh (less than 5 minutes old)
+      // If timestamp is missing (legacy) or old, ignore and clear
+      const isFresh = data.timestamp && (Date.now() - data.timestamp < 5 * 60 * 1000);
+
+      if (!isFresh) {
+        console.log('[OpenAI Automation] Found stale/invalid pending credentials, clearing...');
+        chrome.storage.local.remove(['openaiPendingCredentials']);
+        return;
+      }
+
+      openaiCredentials = data;
       console.log('[OpenAI Automation] Loaded pending credentials for:', openaiCredentials.email);
 
       // Wait for page to load then continue automation

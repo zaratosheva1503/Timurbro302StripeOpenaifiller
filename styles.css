@@ -1282,3 +1282,53 @@ body {
   transform: none;
   box-shadow: none;
 }
+
+.account-row-mini {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.btn-copy-mini {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 10px;
+  padding: 2px 5px;
+  color: #a0a0a0;
+  transition: all 0.2s;
+}
+
+.btn-copy-mini:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.account-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-left: 8px;
+}
+
+.btn-delete-account {
+  background: linear-gradient(135deg, #3a1a1a 0%, #2a1010 100%);
+  border: 1px solid #4a2a2a;
+  color: #ff6b6b;
+  padding: 6px 10px;
+  border-radius: 5px;
+  font-size: 9px;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.3s ease;
+}
+
+.btn-delete-account:hover {
+  background: linear-gradient(135deg, #4a1a1a 0%, #3a1010 100%);
+  border-color: #ff6b6b;
+  box-shadow: 0 3px 10px rgba(239, 68, 68, 0.2);
+}
