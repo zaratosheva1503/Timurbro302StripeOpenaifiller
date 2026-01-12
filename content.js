@@ -1988,17 +1988,79 @@ async function enterVerificationCode(code) {
     return;
   }
 
-  // Single input for all digits
-  const codeInput = document.querySelector('input[type="text"], input[type="tel"], input[name*="code"], input[placeholder*="code"]');
-  if (codeInput) {
-    await typeWithEvents(codeInput, code);
-    await sleep(500);
+  // Single input for all digits - try multiple selectors for auth.openai.com
+  let codeInput = null;
 
-    // Auto-submit if possible
-    const submitBtn = findContinueButton(codeInput.closest('form') || document);
-    if (submitBtn) submitBtn.click();
+  // Try specific selectors for the verification page
+  const selectors = [
+    'input[autocomplete="one-time-code"]',
+    'input[name="code"]',
+    'input[id*="code"]',
+    'input[placeholder*="Code"]',
+    'input[placeholder*="code"]',
+    'input[type="text"]',
+    'input[type="tel"]',
+    'input[inputmode="numeric"]'
+  ];
+
+  for (const selector of selectors) {
+    codeInput = document.querySelector(selector);
+    if (codeInput && codeInput.offsetParent !== null) {  // Check if visible
+      console.log('[OpenAI Automation] Found code input with selector:', selector);
+      break;
+    }
+  }
+
+  if (codeInput) {
+    // Focus the input first
+    codeInput.focus();
+    await sleep(100);
+
+    // Clear existing value
+    codeInput.value = '';
+    codeInput.dispatchEvent(new Event('input', { bubbles: true }));
+
+    // Type the code character by character with events
+    for (const char of code) {
+      codeInput.value += char;
+      codeInput.dispatchEvent(new Event('input', { bubbles: true }));
+      await sleep(50);
+    }
+    codeInput.dispatchEvent(new Event('change', { bubbles: true }));
+    codeInput.dispatchEvent(new Event('blur', { bubbles: true }));
+
+    await sleep(500);
+    console.log('[OpenAI Automation] Code entered:', codeInput.value);
+
+    // Auto-click Continue/Verify button
+    console.log('[OpenAI Automation] Looking for Continue button...');
+    const form = codeInput.closest('form');
+    let continueBtn = null;
+
+    if (form) {
+      continueBtn = form.querySelector('button[type="submit"], button:not([type="button"])');
+    }
+
+    if (!continueBtn) {
+      // Fallback: search globally for relevant buttons
+      const buttons = Array.from(document.querySelectorAll('button'));
+      continueBtn = buttons.find(btn => {
+        const text = (btn.textContent || '').trim().toLowerCase();
+        return (text === 'continue' || text === 'verify' || text === 'submit') && !btn.disabled && btn.offsetParent !== null;
+      });
+    }
+
+    if (continueBtn) {
+      console.log('[OpenAI Automation] Found Continue button, clicking...');
+      continueBtn.click();
+    } else {
+      console.log('[OpenAI Automation] Could not find Continue button');
+    }
 
     showNotification('✅ Verification code entered!', 'success');
+  } else {
+    console.log('[OpenAI Automation] Could not find code input field');
+    showNotification('❌ Could not find code input', 'error');
   }
 }
 

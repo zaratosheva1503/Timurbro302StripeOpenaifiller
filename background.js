@@ -225,6 +225,7 @@ async function generateTempEmail() {
       email,
       login: emailName,
       domain: domain,
+      mailboxPassword: password,  // For re-authentication later
       success: true
     };
   } catch (error) {
@@ -233,12 +234,39 @@ async function generateTempEmail() {
   }
 }
 
-async function checkTempMailInbox(login, domain, maxRetries = 60, delayMs = 2000) {
+async function checkTempMailInbox(login, domain, maxRetries = 60, delayMs = 2000, mailboxPassword = null) {
   const email = `${login}@${domain}`;
   console.log('[Mail.tm] Checking inbox for:', email);
 
+  // If no token exists but we have credentials, try to re-authenticate
+  if (!mailTmToken && mailboxPassword) {
+    console.log('[Mail.tm] No token found, re-authenticating with saved password...');
+    try {
+      const tokenResponse = await fetch(`${MAIL_TM_API}/token`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          address: email,
+          password: mailboxPassword
+        })
+      });
+
+      if (tokenResponse.ok) {
+        const tokenData = await tokenResponse.json();
+        mailTmToken = tokenData.token;
+        console.log('[Mail.tm] Re-authenticated successfully!');
+      } else {
+        console.log('[Mail.tm] Re-authentication failed:', tokenResponse.status);
+      }
+    } catch (e) {
+      console.error('[Mail.tm] Re-authentication error:', e);
+    }
+  }
+
   if (!mailTmToken) {
-    throw new Error('No auth token. Generate email first.');
+    throw new Error('No auth token. Generate email first or token expired.');
   }
 
   for (let i = 0; i < maxRetries; i++) {
@@ -264,8 +292,8 @@ async function checkTempMailInbox(login, domain, maxRetries = 60, delayMs = 2000
       console.log('[Mail.tm] Messages found:', messages.length);
 
       if (messages.length > 0) {
-        // Look for OpenAI verification email
-        const openaiEmail = messages.find(msg => {
+        // Look for OpenAI verification emails and get the LATEST one
+        const openaiEmails = messages.filter(msg => {
           const from = (msg.from?.address || '').toLowerCase();
           const subject = (msg.subject || '').toLowerCase();
           return from.includes('openai') || from.includes('chatgpt') ||
@@ -273,8 +301,11 @@ async function checkTempMailInbox(login, domain, maxRetries = 60, delayMs = 2000
             subject.includes('chatgpt') || subject.includes('openai');
         });
 
-        if (openaiEmail) {
-          console.log('[Mail.tm] Found OpenAI email:', openaiEmail.subject);
+        // Sort by createdAt descending (newest first) and take the first one
+        if (openaiEmails.length > 0) {
+          openaiEmails.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+          const openaiEmail = openaiEmails[0];
+          console.log('[Mail.tm] Found', openaiEmails.length, 'OpenAI emails, using latest:', openaiEmail.subject, 'from', openaiEmail.createdAt);
 
           // Get full message content
           const msgResponse = await fetch(`${MAIL_TM_API}/messages/${openaiEmail.id}`, {
@@ -668,7 +699,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 
   if (request.action === 'checkVerificationCode') {
-    checkTempMailInbox(request.login, request.domain)
+    checkTempMailInbox(request.login, request.domain, 60, 2000, request.mailboxPassword)
       .then(result => sendResponse({ success: true, ...result }))
       .catch(error => sendResponse({ success: false, error: error.message }));
     return true;

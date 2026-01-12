@@ -12,7 +12,7 @@ let liveccResults, liveccCardsList;
 
 // OpenAI Account elements
 let createOpenAIBtn, fetchCodeBtn, openaiStatusDiv, tempEmailValue, copyEmailBtn;
-let openaiProgress, openaiProgressBar, createdAccounts, accountsList;
+let openaiProgress, openaiProgressBar, savedAccountsSection, savedAccountsList;
 let currentTempEmail = null;
 let currentCredentials = null;
 
@@ -63,8 +63,8 @@ document.addEventListener('DOMContentLoaded', function () {
   copyEmailBtn = document.getElementById('copyEmailBtn');
   openaiProgress = document.getElementById('openaiProgress');
   openaiProgressBar = document.getElementById('openaiProgressBar');
-  createdAccounts = document.getElementById('createdAccounts');
-  accountsList = document.getElementById('accountsList');
+  savedAccountsSection = document.getElementById('savedAccountsSection');
+  savedAccountsList = document.getElementById('savedAccountsList');
 
   initializeTabs();
   initializeGenerateTab();
@@ -631,6 +631,9 @@ async function createOpenAIAccount() {
     // Store credentials for cross-page persistence
     await chrome.storage.local.set({ openaiPendingCredentials: credentials });
 
+    // Save account to Saved Accounts immediately (so user can fetch code later)
+    saveCreatedOpenAIAccount(emailResult.email, credResult.password, emailResult.login, emailResult.domain, emailResult.mailboxPassword);
+
     // Try to send message to the new tab
     try {
       await chrome.tabs.sendMessage(newTab.id, {
@@ -679,8 +682,7 @@ async function fetchVerificationCode() {
       updateOpenAIProgress(4, 'Verification code received!');
       updateOpenAIStatus(`✅ Verification Code: ${result.code}\n\nAuto-entering code on OpenAI page...`, 'success');
 
-      // Save account to storage
-      saveCreatedOpenAIAccount(currentTempEmail.email, currentCredentials.password);
+      // Account already saved on creation, no need to save again
 
       // Copy code to clipboard
       copyToClipboard(result.code);
@@ -745,34 +747,119 @@ function updateOpenAIProgress(step, status) {
   updateOpenAIStatus(status, 'loading');
 }
 
-function saveCreatedOpenAIAccount(email, password) {
-  chrome.storage.local.get(['createdOpenAIAccounts'], (result) => {
-    const accounts = result.createdOpenAIAccounts || [];
+function saveCreatedOpenAIAccount(email, password, login, domain, mailboxPassword) {
+  chrome.storage.local.get(['savedOpenAIAccounts'], (result) => {
+    const accounts = result.savedOpenAIAccounts || [];
     accounts.unshift({
       email,
       password,
+      login,           // Needed for fetching verification codes later
+      domain,          // Needed for fetching verification codes later
+      mailboxPassword, // Needed for re-authentication with Mail.tm
       createdAt: new Date().toISOString()
     });
     // Keep only last 20 accounts
-    chrome.storage.local.set({ createdOpenAIAccounts: accounts.slice(0, 20) });
-    loadCreatedAccounts();
+    chrome.storage.local.set({ savedOpenAIAccounts: accounts.slice(0, 20) });
+    loadSavedAccounts();
   });
 }
 
-function loadCreatedAccounts() {
-  chrome.storage.local.get(['createdOpenAIAccounts'], (result) => {
-    const accounts = result.createdOpenAIAccounts || [];
+function loadSavedAccounts() {
+  chrome.storage.local.get(['savedOpenAIAccounts'], (result) => {
+    const accounts = result.savedOpenAIAccounts || [];
 
-    if (accounts.length > 0 && createdAccounts && accountsList) {
-      createdAccounts.style.display = 'block';
-      accountsList.innerHTML = accounts.map(acc => `
-        <div class="account-item">
-          <div class="account-email">${acc.email}</div>
-          <div class="account-password">Password: ${acc.password}</div>
+    if (accounts.length > 0 && savedAccountsSection && savedAccountsList) {
+      savedAccountsSection.style.display = 'block';
+      savedAccountsList.innerHTML = accounts.map((acc, index) => `
+        <div class="saved-account-item">
+          <div class="account-info">
+            <div class="account-email">${acc.email}</div>
+            <div class="account-password">Password: ${acc.password}</div>
+          </div>
+          <button class="btn-fetch-account-code" data-index="${index}" ${acc.login && acc.domain ? '' : 'disabled title="No inbox data"'}>📨 Fetch Code</button>
         </div>
       `).join('');
-    } else if (createdAccounts) {
-      createdAccounts.style.display = 'none';
+
+      // Attach event listeners for Fetch Code buttons
+      document.querySelectorAll('.btn-fetch-account-code').forEach(btn => {
+        btn.addEventListener('click', async function () {
+          const accountIndex = parseInt(this.getAttribute('data-index'));
+          await fetchCodeForAccount(accountIndex, this);
+        });
+      });
+    } else if (savedAccountsSection) {
+      savedAccountsSection.style.display = 'none';
     }
   });
+}
+
+// Alias for backward compatibility
+function loadCreatedAccounts() {
+  loadSavedAccounts();
+}
+
+async function fetchCodeForAccount(accountIndex, button) {
+  const result = await chrome.storage.local.get(['savedOpenAIAccounts']);
+  const accounts = result.savedOpenAIAccounts || [];
+  const account = accounts[accountIndex];
+
+  if (!account || !account.login || !account.domain) {
+    updateOpenAIStatus('❌ Cannot fetch code - no inbox data for this account', 'error');
+    return;
+  }
+
+  try {
+    button.disabled = true;
+    button.textContent = '⏳ Checking...';
+    updateOpenAIStatus(`📨 Checking inbox for ${account.email}...`, 'loading');
+
+    const codeResult = await chrome.runtime.sendMessage({
+      action: 'checkVerificationCode',
+      login: account.login,
+      domain: account.domain,
+      mailboxPassword: account.mailboxPassword  // For re-authentication if token expired
+    });
+
+    if (codeResult.success) {
+      updateOpenAIStatus(`✅ Verification Code for ${account.email}: ${codeResult.code}`, 'success');
+      button.textContent = '✅ ' + codeResult.code;
+      copyToClipboard(codeResult.code);
+
+      // Try to auto-enter the code on any open OpenAI verification tab
+      try {
+        const tabs = await chrome.tabs.query({});
+        for (const tab of tabs) {
+          // Check for auth.openai.com (verification page), chatgpt.com, or openai.com
+          if (tab.url && (tab.url.includes('auth.openai.com') || tab.url.includes('openai.com') || tab.url.includes('chatgpt.com'))) {
+            console.log('[Saved Accounts] Auto-entering code on tab:', tab.url);
+            await chrome.tabs.sendMessage(tab.id, {
+              action: 'enterVerificationCode',
+              code: codeResult.code
+            });
+            console.log('[Saved Accounts] Code sent to tab for auto-fill');
+            break;
+          }
+        }
+      } catch (e) {
+        console.log('[Saved Accounts] Could not auto-enter code:', e);
+      }
+
+      setTimeout(() => {
+        button.textContent = '📨 Fetch Code';
+        button.disabled = false;
+      }, 5000);
+    } else {
+      updateOpenAIStatus(`❌ No verification email found for ${account.email}`, 'error');
+      button.textContent = '❌ Not Found';
+      setTimeout(() => {
+        button.textContent = '📨 Fetch Code';
+        button.disabled = false;
+      }, 3000);
+    }
+  } catch (error) {
+    console.error('[Saved Accounts] Fetch error:', error);
+    updateOpenAIStatus('❌ Error: ' + error.message, 'error');
+    button.textContent = '📨 Fetch Code';
+    button.disabled = false;
+  }
 }

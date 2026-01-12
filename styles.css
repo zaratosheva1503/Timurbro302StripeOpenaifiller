@@ -1193,3 +1193,92 @@ body {
 .openai-info h4 {
   color: #10a37f;
 }
+
+/* ===== Saved Accounts Section ===== */
+.saved-accounts-section {
+  margin-top: 15px;
+  border: 2px solid #10a37f;
+  border-radius: 8px;
+  padding: 12px;
+  background: linear-gradient(135deg, #0a2a1f 0%, #0f1f1a 100%);
+}
+
+.saved-accounts-section h4 {
+  color: #10a37f;
+  font-size: 12px;
+  margin-bottom: 10px;
+  text-align: center;
+}
+
+.saved-accounts-list {
+  max-height: 250px;
+  overflow-y: auto;
+}
+
+.saved-accounts-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.saved-accounts-list::-webkit-scrollbar-track {
+  background: #1a1a1a;
+  border-radius: 10px;
+}
+
+.saved-accounts-list::-webkit-scrollbar-thumb {
+  background: #10a37f;
+  border-radius: 10px;
+}
+
+.saved-account-item {
+  background: linear-gradient(135deg, #16213e, #1a1a2e);
+  border-radius: 6px;
+  padding: 10px;
+  margin-bottom: 8px;
+  border: 1px solid #2a3a5a;
+  transition: all 0.3s ease;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.saved-account-item:last-child {
+  margin-bottom: 0;
+}
+
+.saved-account-item:hover {
+  border-color: #10a37f;
+  transform: translateX(3px);
+}
+
+.saved-account-item .account-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.btn-fetch-account-code {
+  background: linear-gradient(135deg, #10a37f 0%, #0d8a6b 100%);
+  color: white;
+  border: none;
+  padding: 6px 10px;
+  border-radius: 5px;
+  font-size: 9px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.btn-fetch-account-code:hover {
+  background: linear-gradient(135deg, #0d8a6b 0%, #0a7159 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(16, 163, 127, 0.3);
+}
+
+.btn-fetch-account-code:disabled {
+  background: #3a3a3a;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
