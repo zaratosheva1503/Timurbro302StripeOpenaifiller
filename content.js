@@ -1843,6 +1843,10 @@ if (window.location.hostname === 'chatgpt.com' ||
           } else {
             handleAuthPage(openaiCredentials);
           }
+        } else if (window.location.hostname === 'chatgpt.com' || window.location.hostname === 'chat.openai.com') {
+          // Handle ChatGPT page - click "Create account" on Welcome back screen
+          console.log('[OpenAI Automation] On ChatGPT page, triggering handleChatGPTPage...');
+          handleChatGPTPage(openaiCredentials);
         }
       }, 2000);
 
