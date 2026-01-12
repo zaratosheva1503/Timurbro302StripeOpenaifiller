@@ -1479,40 +1479,7 @@ async function handleChatGPTPage(credentials) {
   // Wait a bit for page to load
   await sleep(1000);
 
-  // 1. Handle "Welcome back" (Choose account) screen - Fix for "Stuck" issue
-  const welcomeBackHeading = Array.from(document.querySelectorAll('h1, h2, div')).find(el => el.textContent.includes('Welcome back'));
-  if (welcomeBackHeading) {
-    console.log('[OpenAI Automation] Detected "Welcome back" screen.');
-    // Find the account card
-    const accountContainers = Array.from(document.querySelectorAll('div[class*="account"], button, div[role="button"]'));
-
-    let targetAccount = null;
-    if (credentials) {
-      targetAccount = accountContainers.find(el => {
-        const txt = el.textContent.toLowerCase();
-        return (credentials.email && txt.includes(credentials.email.toLowerCase())) ||
-          (credentials.fullName && txt.includes(credentials.fullName.toLowerCase()));
-      });
-    }
-    // Fallback
-    if (!targetAccount) {
-      targetAccount = accountContainers.find(el => {
-        const txt = el.textContent.toLowerCase();
-        return !txt.includes('log in to another') && !txt.includes('create account') && (txt.includes('@') || txt.length > 5);
-      });
-    }
-
-    if (targetAccount) {
-      console.log('[OpenAI Automation] Found account to select:', targetAccount.textContent);
-      targetAccount.click();
-      await sleep(1500);
-      // Return here assumes clicking the account logs us in and we are done.
-      return;
-    }
-  }
-
-
-  // Look for "Create account" button in the modal
+  // Look for "Create account" or "Sign up" button
   const createAccountBtn = await findButtonByText(['Create account', 'Sign up', 'Create free account'], 5000);
 
   if (createAccountBtn) {
@@ -1538,41 +1505,8 @@ async function handleChatGPTPage(credentials) {
       continueBtn.click();
       showNotification('⏳ Proceeding to password page...', 'info');
     }
-  } else {
-    console.log('[OpenAI Automation] Email input not found, might need signup button first');
-    // Try to find any signup trigger
-    const signupLinks = document.querySelectorAll('a[href*="signup"], button:not([disabled])');
-    for (const link of signupLinks) {
-      const text = (link.textContent || '').toLowerCase();
-      if (text.includes('sign up') || text.includes('get started') || text.includes('create')) {
-        console.log('[OpenAI Automation] Found signup link, clicking:', text);
-        link.click();
-        await sleep(2000);
-        break;
-      }
-    }
   }
 }
-
-
-
-// ========== INITIALIZATION ==========
-(async () => {
-  // Check if we have pending OpenAI credentials to automate
-  if (window.location.hostname === 'chatgpt.com' || window.location.hostname === 'chat.openai.com') {
-    const data = await chrome.storage.local.get(['openaiPendingCredentials']);
-    if (data.openaiPendingCredentials) {
-      console.log('[OpenAI Automation] Found pending credentials on load. Resuming automation...');
-      handleChatGPTPage(data.openaiPendingCredentials);
-    }
-  } else if (window.location.hostname === 'auth.openai.com') {
-    const data = await chrome.storage.local.get(['openaiPendingCredentials']);
-    if (data.openaiPendingCredentials) {
-      console.log('[OpenAI Automation] Found pending credentials on Auth page load. Resuming...');
-      handleAuthPage(data.openaiPendingCredentials);
-    }
-  }
-})();
 
 async function handleAuthPage(credentials) {
   const currentPath = window.location.pathname;
