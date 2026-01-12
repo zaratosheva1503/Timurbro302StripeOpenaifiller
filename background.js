@@ -1162,10 +1162,27 @@ async function createChatGPTAccount() {
     // Step 2: Navigate to ChatGPT signup (20%)
     sendK12Progress(20, 'Opening ChatGPT signup...');
 
-    const chatgptTab = await chrome.tabs.create({
-      url: 'https://chatgpt.com/',
-      active: false
-    });
+    // Create ChatGPT tab in incognito window for fresh session (no cookies)
+    let chatgptTab;
+    try {
+      // Try to create in a new incognito window for cookie isolation
+      const chatgptIncognitoWindow = await chrome.windows.create({
+        url: 'https://chatgpt.com/',
+        incognito: true,
+        focused: true,
+        state: 'normal'
+      });
+      chatgptTab = chatgptIncognitoWindow.tabs[0];
+      k12State.chatgptIncognitoWindowId = chatgptIncognitoWindow.id;
+      console.log('[K12] Opened ChatGPT in NEW incognito window:', chatgptTab.id);
+    } catch (e) {
+      console.log('[K12] Incognito failed for ChatGPT, using regular tab:', e.message);
+      // Fallback to regular tab if incognito not allowed
+      chatgptTab = await chrome.tabs.create({
+        url: 'https://chatgpt.com/',
+        active: true
+      });
+    }
     k12State.chatgptTabId = chatgptTab.id;
     console.log('[K12] Opened ChatGPT tab:', chatgptTab.id);
 
