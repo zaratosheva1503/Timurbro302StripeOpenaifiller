@@ -2095,16 +2095,16 @@ if (window.location.hostname === 'chatgpt.com' || window.location.hostname === '
   };
 
   // Check periodically for onboarding popups (they may appear after page load)
+  // Keep checking for multiple popups since there can be several in a row
   let onboardingCheckCount = 0;
-  const maxOnboardingChecks = 30; // Check for 1 minute (30 * 2s = 60s)
+  const maxOnboardingChecks = 60; // Check for 2 minutes (60 * 2s = 120s)
 
   const onboardingInterval = setInterval(() => {
     onboardingCheckCount++;
-    if (skipOnboardingPopups() || onboardingCheckCount >= maxOnboardingChecks) {
-      // Stop checking after successful skip or timeout
-      if (onboardingCheckCount >= maxOnboardingChecks) {
-        console.log('[Zarif] Stopped checking for onboarding popups (timeout)');
-      }
+    skipOnboardingPopups(); // Keep trying to skip, don't stop after first one
+
+    if (onboardingCheckCount >= maxOnboardingChecks) {
+      console.log('[Zarif] Stopped checking for onboarding popups (timeout)');
       clearInterval(onboardingInterval);
     }
   }, 2000);
