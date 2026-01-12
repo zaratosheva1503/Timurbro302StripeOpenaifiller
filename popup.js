@@ -583,6 +583,13 @@ function initializeOpenAITab() {
 
 async function createOpenAIAccount() {
   try {
+    // Check if already logged in to ChatGPT
+    const cookie = await chrome.cookies.get({ url: 'https://chatgpt.com', name: '__Secure-next-auth.session-token' });
+    if (cookie) {
+      updateOpenAIStatus('❌ Already logged in! Please log out from ChatGPT first.', 'error');
+      return;
+    }
+
     // Show progress
     if (openaiProgress) openaiProgress.style.display = 'block';
     updateOpenAIProgress(1, 'Generating temp email...');
