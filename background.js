@@ -163,12 +163,11 @@ async function generateTempEmail() {
     const domain = domains[0].domain;
     console.log('[Mail.tm] Using domain:', domain);
 
-    // Step 2: Generate random email address
-    const randomStr = Math.random().toString(36).substring(2, 12);
-    const timestamp = Date.now().toString(36).substring(0, 4);
-    const emailName = `user${randomStr}${timestamp}`;
+    // Step 2: Generate random email address with short suffix
+    const randomNum = Math.floor(Math.random() * 900) + 100; // 100-999
+    const emailName = `zarifcardauto${randomNum}`;
     const email = `${emailName}@${domain}`;
-    const password = `Pass${randomStr}123!`;
+    const password = `Pass${randomNum}!`;
 
     console.log('[Mail.tm] Creating account for:', email);
 
