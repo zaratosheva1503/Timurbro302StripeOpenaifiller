@@ -2074,6 +2074,42 @@ if (window.location.hostname === 'chatgpt.com' ||
   });
 }
 
+// ========== Auto-Skip ChatGPT Onboarding Popups ==========
+// Automatically clicks "Skip" on post-signup onboarding dialogs
+if (window.location.hostname === 'chatgpt.com' || window.location.hostname === 'chat.openai.com') {
+  console.log('[Zarif] ChatGPT page detected - watching for onboarding popups to skip...');
+
+  const skipOnboardingPopups = () => {
+    // Look for "Skip" button (usually at the bottom of onboarding dialogs)
+    const buttons = document.querySelectorAll('button');
+    for (const btn of buttons) {
+      const btnText = (btn.textContent || btn.innerText || '').trim().toLowerCase();
+      // Match "Skip" button specifically
+      if (btnText === 'skip') {
+        console.log('[Zarif] Found "Skip" button on onboarding popup, clicking...');
+        btn.click();
+        return true;
+      }
+    }
+    return false;
+  };
+
+  // Check periodically for onboarding popups (they may appear after page load)
+  let onboardingCheckCount = 0;
+  const maxOnboardingChecks = 30; // Check for 1 minute (30 * 2s = 60s)
+
+  const onboardingInterval = setInterval(() => {
+    onboardingCheckCount++;
+    if (skipOnboardingPopups() || onboardingCheckCount >= maxOnboardingChecks) {
+      // Stop checking after successful skip or timeout
+      if (onboardingCheckCount >= maxOnboardingChecks) {
+        console.log('[Zarif] Stopped checking for onboarding popups (timeout)');
+      }
+      clearInterval(onboardingInterval);
+    }
+  }, 2000);
+}
+
 // Auto-fetch verification code from background script
 async function autoFetchVerificationCode() {
   // Get the email info from stored credentials
