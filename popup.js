@@ -10,6 +10,12 @@ let liveccBinInput, liveccBtn, liveccStopBtn, liveccStatusDiv, liveccCountrySele
 let liveccProgressSection, liveccProgressBar, liveccProgressPercent, liveccProgressStatus;
 let liveccResults, liveccCardsList;
 
+// OpenAI Account elements
+let createOpenAIBtn, fetchCodeBtn, openaiStatusDiv, tempEmailValue, copyEmailBtn;
+let openaiProgress, openaiProgressBar, createdAccounts, accountsList;
+let currentTempEmail = null;
+let currentCredentials = null;
+
 
 document.addEventListener('DOMContentLoaded', function () {
   binInput = document.getElementById('bin');
@@ -49,12 +55,25 @@ document.addEventListener('DOMContentLoaded', function () {
   liveccResults = document.getElementById('liveccResults');
   liveccCardsList = document.getElementById('liveccCardsList');
 
+  // OpenAI Account elements
+  createOpenAIBtn = document.getElementById('createOpenAIBtn');
+  fetchCodeBtn = document.getElementById('fetchCodeBtn');
+  openaiStatusDiv = document.getElementById('openaiStatus');
+  tempEmailValue = document.getElementById('tempEmailValue');
+  copyEmailBtn = document.getElementById('copyEmailBtn');
+  openaiProgress = document.getElementById('openaiProgress');
+  openaiProgressBar = document.getElementById('openaiProgressBar');
+  createdAccounts = document.getElementById('createdAccounts');
+  accountsList = document.getElementById('accountsList');
+
   initializeTabs();
   initializeGenerateTab();
   initializePrecardsTab();
   initializeLiveCCTab();
+  initializeOpenAITab();
   loadInitialData();
   loadVersion();
+  loadCreatedAccounts();
 
   // Add country change listener to update BIN and expiry defaults
   if (countrySelect) {
@@ -104,6 +123,9 @@ function initializeTabs() {
       } else if (tabName === 'livecc') {
         document.getElementById('liveccTab').classList.add('active');
         updateLiveCCDefaultsForCountry();
+      } else if (tabName === 'openai') {
+        document.getElementById('openaiTab').classList.add('active');
+        loadCreatedAccounts();
       }
     });
   });
@@ -532,4 +554,225 @@ function showLiveCCError(message) {
   liveccBtn.style.display = 'block';
   liveccStopBtn.style.display = 'none';
   updateLiveCCStatus('❌ ' + message, 'error');
+}
+
+// ========== OpenAI Account Tab Functions ==========
+
+function initializeOpenAITab() {
+  if (!createOpenAIBtn) return;
+
+  // Create Account button handler
+  createOpenAIBtn.addEventListener('click', createOpenAIAccount);
+
+  // Fetch Code button handler
+  if (fetchCodeBtn) {
+    fetchCodeBtn.addEventListener('click', fetchVerificationCode);
+  }
+
+  // Copy email button handler
+  if (copyEmailBtn) {
+    copyEmailBtn.addEventListener('click', () => {
+      if (currentTempEmail && currentTempEmail.email) {
+        copyToClipboard(currentTempEmail.email);
+        copyEmailBtn.textContent = '✓';
+        setTimeout(() => { copyEmailBtn.textContent = '📋'; }, 1500);
+      }
+    });
+  }
+}
+
+async function createOpenAIAccount() {
+  try {
+    // Show progress
+    if (openaiProgress) openaiProgress.style.display = 'block';
+    updateOpenAIProgress(1, 'Generating temp email...');
+    createOpenAIBtn.disabled = true;
+    createOpenAIBtn.textContent = '⏳ Creating...';
+
+    // Step 1: Generate temp email
+    const emailResult = await chrome.runtime.sendMessage({ action: 'generateTempEmail' });
+
+    if (!emailResult.success) {
+      throw new Error(emailResult.error || 'Failed to generate email');
+    }
+
+    currentTempEmail = emailResult;
+    if (tempEmailValue) {
+      tempEmailValue.textContent = emailResult.email;
+    }
+
+    updateOpenAIProgress(2, 'Getting credentials...');
+
+    // Get credentials
+    const credResult = await chrome.runtime.sendMessage({
+      action: 'getOpenAICredentials',
+      emailPrefix: emailResult.login
+    });
+
+    currentCredentials = credResult;
+
+    updateOpenAIProgress(3, 'Opening ChatGPT & starting automation...');
+    updateOpenAIStatus(`📧 Email: ${emailResult.email}\n🔑 Password: ${credResult.password}`, 'success');
+
+    // Step 2: Open ChatGPT signup page
+    const newTab = await chrome.tabs.create({ url: 'https://chatgpt.com' });
+
+    // Wait for tab to load then send automation command
+    await new Promise(resolve => setTimeout(resolve, 3000));
+
+    // Send automation command to the ChatGPT tab
+    const credentials = {
+      email: emailResult.email,
+      password: credResult.password,
+      fullName: credResult.fullName,
+      birthday: credResult.birthday
+    };
+
+    // Store credentials for cross-page persistence
+    await chrome.storage.local.set({ openaiPendingCredentials: credentials });
+
+    // Try to send message to the new tab
+    try {
+      await chrome.tabs.sendMessage(newTab.id, {
+        action: 'automateOpenAI',
+        credentials: credentials
+      });
+      console.log('[OpenAI Popup] Automation command sent to tab');
+    } catch (e) {
+      console.log('[OpenAI Popup] Could not send message, content script will auto-detect credentials');
+    }
+
+    // Show fetch code button and instructions
+    if (fetchCodeBtn) fetchCodeBtn.style.display = 'block';
+
+    createOpenAIBtn.disabled = false;
+    createOpenAIBtn.textContent = '🚀 Create OpenAI Account';
+
+    updateOpenAIStatus(`🤖 Automation started! Watch the browser...\n\n📧 Email: ${emailResult.email}\n🔑 Password: ${credResult.password}\n👤 Name: ${credResult.fullName}\n🎂 Birthday: ${credResult.birthday.month}/${credResult.birthday.day}/${credResult.birthday.year}\n\n⏳ Click "Fetch Verification Code" after OpenAI sends the email`, 'loading');
+
+  } catch (error) {
+    console.error('[OpenAI] Error:', error);
+    updateOpenAIStatus('❌ Error: ' + error.message, 'error');
+    createOpenAIBtn.disabled = false;
+    createOpenAIBtn.textContent = '🚀 Create OpenAI Account';
+  }
+}
+
+async function fetchVerificationCode() {
+  if (!currentTempEmail) {
+    updateOpenAIStatus('❌ No email generated yet. Click "Create OpenAI Account" first.', 'error');
+    return;
+  }
+
+  try {
+    fetchCodeBtn.disabled = true;
+    fetchCodeBtn.textContent = '⏳ Checking inbox...';
+    updateOpenAIStatus('📨 Checking inbox for verification code... (this may take up to 90 seconds)', 'loading');
+
+    const result = await chrome.runtime.sendMessage({
+      action: 'checkVerificationCode',
+      login: currentTempEmail.login,
+      domain: currentTempEmail.domain
+    });
+
+    if (result.success) {
+      updateOpenAIProgress(4, 'Verification code received!');
+      updateOpenAIStatus(`✅ Verification Code: ${result.code}\n\nAuto-entering code on OpenAI page...`, 'success');
+
+      // Save account to storage
+      saveCreatedOpenAIAccount(currentTempEmail.email, currentCredentials.password);
+
+      // Copy code to clipboard
+      copyToClipboard(result.code);
+
+      // Try to auto-enter the code on the active OpenAI tab
+      try {
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: false });
+        for (const tab of tabs) {
+          if (tab.url && (tab.url.includes('openai.com') || tab.url.includes('chatgpt.com'))) {
+            await chrome.tabs.sendMessage(tab.id, {
+              action: 'enterVerificationCode',
+              code: result.code
+            });
+            console.log('[OpenAI Popup] Code sent to tab for auto-entry');
+            break;
+          }
+        }
+      } catch (e) {
+        console.log('[OpenAI Popup] Could not auto-enter code:', e);
+      }
+
+      fetchCodeBtn.textContent = '✅ Code: ' + result.code;
+      updateOpenAIProgress(5, 'Account creation complete!');
+      setTimeout(() => {
+        fetchCodeBtn.textContent = '📨 Fetch Verification Code';
+        fetchCodeBtn.disabled = false;
+      }, 5000);
+
+    } else {
+      updateOpenAIStatus('❌ ' + (result.error || 'Could not find verification email'), 'error');
+      fetchCodeBtn.disabled = false;
+      fetchCodeBtn.textContent = '📨 Fetch Verification Code';
+    }
+  } catch (error) {
+    console.error('[OpenAI] Fetch error:', error);
+    updateOpenAIStatus('❌ Error: ' + error.message, 'error');
+    fetchCodeBtn.disabled = false;
+    fetchCodeBtn.textContent = '📨 Fetch Verification Code';
+  }
+}
+
+function updateOpenAIStatus(message, type = '') {
+  if (openaiStatusDiv) {
+    openaiStatusDiv.innerHTML = '<p>' + message.replace(/\n/g, '<br>') + '</p>';
+    openaiStatusDiv.className = 'status ' + type;
+  }
+}
+
+function updateOpenAIProgress(step, status) {
+  if (openaiProgressBar) {
+    const percentage = (step / 5) * 100;
+    openaiProgressBar.style.width = percentage + '%';
+  }
+
+  const steps = document.querySelectorAll('.progress-steps .step');
+  steps.forEach((el, i) => {
+    el.classList.remove('active', 'completed');
+    if (i + 1 < step) el.classList.add('completed');
+    if (i + 1 === step) el.classList.add('active');
+  });
+
+  updateOpenAIStatus(status, 'loading');
+}
+
+function saveCreatedOpenAIAccount(email, password) {
+  chrome.storage.local.get(['createdOpenAIAccounts'], (result) => {
+    const accounts = result.createdOpenAIAccounts || [];
+    accounts.unshift({
+      email,
+      password,
+      createdAt: new Date().toISOString()
+    });
+    // Keep only last 20 accounts
+    chrome.storage.local.set({ createdOpenAIAccounts: accounts.slice(0, 20) });
+    loadCreatedAccounts();
+  });
+}
+
+function loadCreatedAccounts() {
+  chrome.storage.local.get(['createdOpenAIAccounts'], (result) => {
+    const accounts = result.createdOpenAIAccounts || [];
+
+    if (accounts.length > 0 && createdAccounts && accountsList) {
+      createdAccounts.style.display = 'block';
+      accountsList.innerHTML = accounts.map(acc => `
+        <div class="account-item">
+          <div class="account-email">${acc.email}</div>
+          <div class="account-password">Password: ${acc.password}</div>
+        </div>
+      `).join('');
+    } else if (createdAccounts) {
+      createdAccounts.style.display = 'none';
+    }
+  });
 }

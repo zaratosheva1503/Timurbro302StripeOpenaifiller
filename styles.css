@@ -994,3 +994,202 @@ body {
 .livecc-info h4 {
   color: #4ade80;
 }
+
+/* ===== OpenAI Account Creator Styles ===== */
+.openai-header {
+  text-align: center;
+  margin-bottom: 15px;
+}
+
+.openai-header h3 {
+  color: #10a37f;
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 5px;
+  text-shadow: 0 0 20px rgba(16, 163, 127, 0.3);
+}
+
+.openai-header p {
+  color: #808080;
+  font-size: 11px;
+}
+
+.openai-status-section {
+  margin-bottom: 15px;
+}
+
+.email-display {
+  background: linear-gradient(135deg, #1a1a2e, #16213e);
+  border: 2px solid #10a37f;
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 0 20px rgba(16, 163, 127, 0.1);
+}
+
+.email-label {
+  color: #888;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.email-value {
+  color: #10a37f;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 12px;
+  font-weight: 600;
+  flex: 1;
+  word-break: break-all;
+}
+
+.copy-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.3s ease;
+}
+
+.copy-btn:hover {
+  background: rgba(16, 163, 127, 0.2);
+  transform: scale(1.1);
+}
+
+.copy-btn:active {
+  transform: scale(0.95);
+}
+
+.btn-openai {
+  background: linear-gradient(135deg, #10a37f 0%, #0d8a6b 100%);
+  border: 1px solid #15c997;
+  box-shadow: 0 4px 20px rgba(16, 163, 127, 0.3);
+}
+
+.btn-openai:hover {
+  background: linear-gradient(135deg, #0d8a6b 0%, #0a7159 100%);
+  box-shadow: 0 6px 30px rgba(16, 163, 127, 0.4);
+  transform: translateY(-2px);
+}
+
+.openai-progress {
+  margin-bottom: 15px;
+}
+
+.openai-progress-bar {
+  background: linear-gradient(90deg, #10a37f, #15c997, #10a37f);
+  background-size: 200% 100%;
+  animation: progressShimmer 2s ease-in-out infinite;
+}
+
+@keyframes progressShimmer {
+  0% {
+    background-position: 200% 0;
+  }
+
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.progress-steps {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 10px;
+  font-size: 10px;
+}
+
+.progress-steps .step {
+  color: #555;
+  transition: all 0.3s ease;
+  padding: 4px 6px;
+  border-radius: 4px;
+}
+
+.progress-steps .step.active {
+  color: #10a37f;
+  background: rgba(16, 163, 127, 0.1);
+  font-weight: 600;
+}
+
+.progress-steps .step.completed {
+  color: #4ade80;
+}
+
+.created-accounts {
+  margin-top: 15px;
+  border: 2px solid #10a37f;
+  border-radius: 8px;
+  padding: 12px;
+  background: linear-gradient(135deg, #0a2a1f 0%, #0f1f1a 100%);
+}
+
+.created-accounts h4 {
+  color: #10a37f;
+  font-size: 12px;
+  margin-bottom: 10px;
+  text-align: center;
+}
+
+.accounts-list {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.accounts-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.accounts-list::-webkit-scrollbar-track {
+  background: #1a1a1a;
+  border-radius: 10px;
+}
+
+.accounts-list::-webkit-scrollbar-thumb {
+  background: #10a37f;
+  border-radius: 10px;
+}
+
+.account-item {
+  background: linear-gradient(135deg, #16213e, #1a1a2e);
+  border-radius: 6px;
+  padding: 10px;
+  margin-bottom: 8px;
+  border: 1px solid #2a3a5a;
+  transition: all 0.3s ease;
+}
+
+.account-item:last-child {
+  margin-bottom: 0;
+}
+
+.account-item:hover {
+  border-color: #10a37f;
+  transform: translateX(3px);
+}
+
+.account-email {
+  color: #10a37f;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.account-password {
+  color: #888;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 10px;
+}
+
+.openai-info {
+  background: linear-gradient(135deg, #0a2a1f 0%, #0f1f1a 100%);
+  border-color: #10a37f;
+}
+
+.openai-info h4 {
+  color: #10a37f;
+}

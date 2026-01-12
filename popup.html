@@ -44,6 +44,7 @@
       <button class="tab-btn active" data-tab="generate">Generate Now</button>
       <button class="tab-btn" data-tab="livecc">Live CC</button>
       <button class="tab-btn" data-tab="precards">Pre-Cards</button>
+      <button class="tab-btn" data-tab="openai">OpenAI Account</button>
     </div>
 
     <!-- Tab Content: Generate Now -->
@@ -310,6 +311,65 @@
           <li>Extension generates 100 cards</li>
           <li>Validates against TeamCSB checker</li>
           <li>Only LIVE cards are displayed</li>
+        </ol>
+      </div>
+    </div>
+
+    <!-- Tab Content: OpenAI Account -->
+    <div class="content tab-content" id="openaiTab">
+      <div class="openai-header">
+        <h3>🤖 OpenAI Account Creator</h3>
+        <p>Create ChatGPT accounts automatically with temp email</p>
+      </div>
+
+      <div class="openai-status-section">
+        <div class="email-display" id="tempEmailDisplay">
+          <span class="email-label">Temp Email:</span>
+          <span class="email-value" id="tempEmailValue">Not generated</span>
+          <button class="copy-btn" id="copyEmailBtn" title="Copy Email">📋</button>
+        </div>
+      </div>
+
+      <div class="openai-progress" id="openaiProgress" style="display: none;">
+        <div class="progress-bar-container">
+          <div class="progress-bar openai-progress-bar" id="openaiProgressBar" style="width: 0%"></div>
+        </div>
+        <div class="progress-steps" id="openaiProgressSteps">
+          <span class="step" data-step="1">📧 Email</span>
+          <span class="step" data-step="2">📝 Signup</span>
+          <span class="step" data-step="3">🔑 Password</span>
+          <span class="step" data-step="4">✅ Verify</span>
+          <span class="step" data-step="5">👤 Profile</span>
+        </div>
+      </div>
+
+      <div class="status" id="openaiStatus">
+        <p>Click "Create Account" to start</p>
+      </div>
+
+      <button id="createOpenAIBtn" class="btn btn-primary btn-openai">
+        🚀 Create OpenAI Account
+      </button>
+
+      <button id="fetchCodeBtn" class="btn btn-secondary" style="display: none;">
+        📨 Fetch Verification Code
+      </button>
+
+      <div class="created-accounts" id="createdAccounts" style="display: none;">
+        <h4>✅ Created Accounts:</h4>
+        <div id="accountsList" class="accounts-list"></div>
+      </div>
+
+      <div class="info openai-info">
+        <h4>ℹ️ How It Works:</h4>
+        <ol>
+          <li>Click "Create OpenAI Account"</li>
+          <li>Extension generates temp email (1secmail)</li>
+          <li>Opens chatgpt.com and enters email</li>
+          <li>Creates password automatically</li>
+          <li>Fetches verification code from inbox</li>
+          <li>Enters code and completes profile</li>
+          <li>Account ready! Credentials saved.</li>
         </ol>
       </div>
     </div>

@@ -139,7 +139,202 @@ function randomChoice(arr) {
 }
 
 // ===== HARDCODED CONFIGURATION FOR OPENAI =====
-const EXTENSION_VERSION = '6.6.0';
+// ===== MAIL.TM FREE API (No API key required!) =====
+const MAIL_TM_API = 'https://api.mail.tm';
+let currentMailbox = null;
+let mailTmToken = null;
+
+async function generateTempEmail() {
+  try {
+    console.log('[Mail.tm] Generating new temp email...');
+
+    // Step 1: Get available domains
+    const domainsResponse = await fetch(`${MAIL_TM_API}/domains`);
+    if (!domainsResponse.ok) {
+      throw new Error(`Failed to get domains: ${domainsResponse.status}`);
+    }
+    const domainsData = await domainsResponse.json();
+    const domains = domainsData['hydra:member'] || domainsData;
+
+    if (!domains || domains.length === 0) {
+      throw new Error('No domains available');
+    }
+
+    const domain = domains[0].domain;
+    console.log('[Mail.tm] Using domain:', domain);
+
+    // Step 2: Generate random email address
+    const randomStr = Math.random().toString(36).substring(2, 12);
+    const timestamp = Date.now().toString(36).substring(0, 4);
+    const emailName = `user${randomStr}${timestamp}`;
+    const email = `${emailName}@${domain}`;
+    const password = `Pass${randomStr}123!`;
+
+    console.log('[Mail.tm] Creating account for:', email);
+
+    // Step 3: Create account
+    const createResponse = await fetch(`${MAIL_TM_API}/accounts`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        address: email,
+        password: password
+      })
+    });
+
+    if (!createResponse.ok) {
+      const errorText = await createResponse.text();
+      console.error('[Mail.tm] Account creation failed:', errorText);
+      throw new Error(`Failed to create account: ${createResponse.status}`);
+    }
+
+    const accountData = await createResponse.json();
+    console.log('[Mail.tm] Account created:', accountData.address);
+
+    // Step 4: Get auth token
+    const tokenResponse = await fetch(`${MAIL_TM_API}/token`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        address: email,
+        password: password
+      })
+    });
+
+    if (!tokenResponse.ok) {
+      throw new Error(`Failed to get token: ${tokenResponse.status}`);
+    }
+
+    const tokenData = await tokenResponse.json();
+    mailTmToken = tokenData.token;
+    console.log('[Mail.tm] Got auth token');
+
+    currentMailbox = {
+      email,
+      emailName,
+      domain,
+      password,
+      accountId: accountData.id,
+      token: mailTmToken
+    };
+
+    return {
+      email,
+      login: emailName,
+      domain: domain,
+      success: true
+    };
+  } catch (error) {
+    console.error('[Mail.tm] Error:', error);
+    throw error;
+  }
+}
+
+async function checkTempMailInbox(login, domain, maxRetries = 60, delayMs = 2000) {
+  const email = `${login}@${domain}`;
+  console.log('[Mail.tm] Checking inbox for:', email);
+
+  if (!mailTmToken) {
+    throw new Error('No auth token. Generate email first.');
+  }
+
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      console.log(`[Mail.tm] Attempt ${i + 1}/${maxRetries}...`);
+
+      const response = await fetch(`${MAIL_TM_API}/messages`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${mailTmToken}`
+        }
+      });
+
+      if (!response.ok) {
+        console.log(`[Mail.tm] API returned ${response.status}`);
+        await new Promise(r => setTimeout(r, delayMs));
+        continue;
+      }
+
+      const data = await response.json();
+      const messages = data['hydra:member'] || data || [];
+
+      console.log('[Mail.tm] Messages found:', messages.length);
+
+      if (messages.length > 0) {
+        // Look for OpenAI verification email
+        const openaiEmail = messages.find(msg => {
+          const from = (msg.from?.address || '').toLowerCase();
+          const subject = (msg.subject || '').toLowerCase();
+          return from.includes('openai') || from.includes('chatgpt') ||
+            subject.includes('verify') || subject.includes('code') ||
+            subject.includes('chatgpt') || subject.includes('openai');
+        });
+
+        if (openaiEmail) {
+          console.log('[Mail.tm] Found OpenAI email:', openaiEmail.subject);
+
+          // Get full message content
+          const msgResponse = await fetch(`${MAIL_TM_API}/messages/${openaiEmail.id}`, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${mailTmToken}`
+            }
+          });
+
+          if (msgResponse.ok) {
+            const fullMessage = await msgResponse.json();
+            const allText = (fullMessage.subject || '') + ' ' + (fullMessage.text || '') + ' ' + (fullMessage.html || []).join(' ');
+
+            const codeMatch = allText.match(/\b(\d{6})\b/);
+            if (codeMatch) {
+              console.log('[Mail.tm] Verification code found:', codeMatch[1]);
+              return {
+                success: true,
+                code: codeMatch[1],
+                message: fullMessage
+              };
+            }
+          }
+        }
+      }
+
+      await new Promise(r => setTimeout(r, delayMs));
+    } catch (error) {
+      console.error('[Mail.tm] Error checking inbox:', error);
+      await new Promise(r => setTimeout(r, delayMs));
+    }
+  }
+
+  throw new Error('Verification email not received after ' + maxRetries + ' attempts');
+}
+
+function generateOpenAIPassword(emailPrefix) {
+  // Pattern: emailPrefix@XXXX (random 4 digits) - ensures 12+ chars
+  const suffix = Math.floor(1000 + Math.random() * 9000);
+  const password = `${emailPrefix}@${suffix}`;
+  console.log('[OpenAI] Generated password:', password);
+  return password;
+}
+
+function generateRandomBirthday() {
+  const year = 1970 + Math.floor(Math.random() * 30); // 1970-1999
+  const month = String(Math.floor(Math.random() * 12) + 1).padStart(2, '0');
+  const day = String(Math.floor(Math.random() * 28) + 1).padStart(2, '0');
+  return { day, month, year: String(year) };
+}
+
+function generateRandomOpenAIName() {
+  const firstNames = ['Alex', 'Jordan', 'Taylor', 'Morgan', 'Casey', 'Riley', 'Quinn', 'Avery', 'Cameron', 'Dakota'];
+  const lastNames = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Miller', 'Davis', 'Wilson', 'Moore', 'Taylor'];
+  return {
+    firstName: firstNames[Math.floor(Math.random() * firstNames.length)],
+    lastName: lastNames[Math.floor(Math.random() * lastNames.length)]
+  };
+}
 
 // ===== HOT RELOAD FOR DEVELOPMENT =====
 // Checks for file changes every 2 seconds and reloads extension if detected
@@ -462,6 +657,34 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       handleLiveCCResults(request.results.result.liveCards || [], sender.tab.id);
     }
     sendResponse({ success: true });
+    return true;
+  }
+
+  // ===== OpenAI Account Creation Message Handlers =====
+  if (request.action === 'generateTempEmail') {
+    generateTempEmail()
+      .then(result => sendResponse({ success: true, ...result }))
+      .catch(error => sendResponse({ success: false, error: error.message }));
+    return true;
+  }
+
+  if (request.action === 'checkVerificationCode') {
+    checkTempMailInbox(request.login, request.domain)
+      .then(result => sendResponse({ success: true, ...result }))
+      .catch(error => sendResponse({ success: false, error: error.message }));
+    return true;
+  }
+
+  if (request.action === 'getOpenAICredentials') {
+    const name = generateRandomOpenAIName();
+    const birthday = generateRandomBirthday();
+    const password = generateOpenAIPassword(request.emailPrefix);
+    sendResponse({
+      success: true,
+      password,
+      fullName: `${name.firstName} ${name.lastName}`,
+      birthday
+    });
     return true;
   }
 });

@@ -1440,9 +1440,544 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     // Handle Live CC Check on teamcsb.com
     handleLiveCCCheck(request.cardLines);
     sendResponse({ received: true });
+  } else if (request.action === 'automateOpenAI') {
+    // Handle OpenAI account creation automation
+    console.log('[OpenAI Automation] Received automation request');
+    automateOpenAISignup(request.credentials);
+    sendResponse({ success: true });
+  } else if (request.action === 'enterVerificationCode') {
+    // Enter verification code on OpenAI
+    console.log('[OpenAI Automation] Entering verification code:', request.code);
+    enterVerificationCode(request.code);
+    sendResponse({ success: true });
   }
   return true;
 });
+
+// ========== OpenAI Account Creation Automation ==========
+let openaiCredentials = null;
+
+async function automateOpenAISignup(credentials) {
+  openaiCredentials = credentials;
+  // Store credentials for use across page navigations
+  chrome.storage.local.set({ openaiPendingCredentials: credentials });
+
+  console.log('[OpenAI Automation] Starting signup with email:', credentials.email);
+  showNotification('🤖 Starting OpenAI account creation...', 'info');
+
+  // Detect which page we're on and act accordingly
+  if (window.location.hostname === 'chatgpt.com' || window.location.hostname === 'chat.openai.com') {
+    await handleChatGPTPage(credentials);
+  } else if (window.location.hostname === 'auth.openai.com') {
+    await handleAuthPage(credentials);
+  }
+}
+
+async function handleChatGPTPage(credentials) {
+  console.log('[OpenAI Automation] On ChatGPT page, looking for signup modal...');
+
+  // Wait a bit for page to load
+  await sleep(1000);
+
+  // 1. Handle "Welcome back" (Choose account) screen - Fix for "Stuck" issue
+  const welcomeBackHeading = Array.from(document.querySelectorAll('h1, h2, div')).find(el => el.textContent.includes('Welcome back'));
+  if (welcomeBackHeading) {
+    console.log('[OpenAI Automation] Detected "Welcome back" screen.');
+    // Find the account card
+    const accountContainers = Array.from(document.querySelectorAll('div[class*="account"], button, div[role="button"]'));
+
+    let targetAccount = null;
+    if (credentials) {
+      targetAccount = accountContainers.find(el => {
+        const txt = el.textContent.toLowerCase();
+        return (credentials.email && txt.includes(credentials.email.toLowerCase())) ||
+          (credentials.fullName && txt.includes(credentials.fullName.toLowerCase()));
+      });
+    }
+    // Fallback
+    if (!targetAccount) {
+      targetAccount = accountContainers.find(el => {
+        const txt = el.textContent.toLowerCase();
+        return !txt.includes('log in to another') && !txt.includes('create account') && (txt.includes('@') || txt.length > 5);
+      });
+    }
+
+    if (targetAccount) {
+      console.log('[OpenAI Automation] Found account to select:', targetAccount.textContent);
+      targetAccount.click();
+      await sleep(1500);
+      // Return here assumes clicking the account logs us in and we are done.
+      return;
+    }
+  }
+
+
+  // Look for "Create account" button in the modal
+  const createAccountBtn = await findButtonByText(['Create account', 'Sign up', 'Create free account'], 5000);
+
+  if (createAccountBtn) {
+    console.log('[OpenAI Automation] Found Create Account button, clicking...');
+    showNotification('📝 Clicking Create Account...', 'info');
+    createAccountBtn.click();
+    await sleep(1500);
+  }
+
+  // Look for email input
+  const emailInput = await waitForElement('input[type="email"], input[name="email"], input[placeholder*="Email"]', 5000).catch(() => null);
+
+  if (emailInput) {
+    console.log('[OpenAI Automation] Found email input, entering email...');
+    showNotification('📧 Entering email...', 'info');
+    await typeWithEvents(emailInput, credentials.email);
+    await sleep(500);
+
+    // Click continue/submit button
+    const continueBtn = findContinueButton(emailInput.closest('form') || document);
+    if (continueBtn) {
+      console.log('[OpenAI Automation] Clicking continue button...');
+      continueBtn.click();
+      showNotification('⏳ Proceeding to password page...', 'info');
+    }
+  } else {
+    console.log('[OpenAI Automation] Email input not found, might need signup button first');
+    // Try to find any signup trigger
+    const signupLinks = document.querySelectorAll('a[href*="signup"], button:not([disabled])');
+    for (const link of signupLinks) {
+      const text = (link.textContent || '').toLowerCase();
+      if (text.includes('sign up') || text.includes('get started') || text.includes('create')) {
+        console.log('[OpenAI Automation] Found signup link, clicking:', text);
+        link.click();
+        await sleep(2000);
+        break;
+      }
+    }
+  }
+}
+
+
+
+// ========== INITIALIZATION ==========
+(async () => {
+  // Check if we have pending OpenAI credentials to automate
+  if (window.location.hostname === 'chatgpt.com' || window.location.hostname === 'chat.openai.com') {
+    const data = await chrome.storage.local.get(['openaiPendingCredentials']);
+    if (data.openaiPendingCredentials) {
+      console.log('[OpenAI Automation] Found pending credentials on load. Resuming automation...');
+      handleChatGPTPage(data.openaiPendingCredentials);
+    }
+  } else if (window.location.hostname === 'auth.openai.com') {
+    const data = await chrome.storage.local.get(['openaiPendingCredentials']);
+    if (data.openaiPendingCredentials) {
+      console.log('[OpenAI Automation] Found pending credentials on Auth page load. Resuming...');
+      handleAuthPage(data.openaiPendingCredentials);
+    }
+  }
+})();
+
+async function handleAuthPage(credentials) {
+  const currentPath = window.location.pathname;
+  console.log('[OpenAI Automation] On auth page:', currentPath);
+
+  if (currentPath.includes('/authorize')) {
+    // Initial signup page - enter email
+    const emailInput = await waitForElement('input[type="email"], input[name="email"], input[id*="email"]', 5000).catch(() => null);
+    if (emailInput && !emailInput.value) {
+      console.log('[OpenAI Automation] Entering email on authorize page...');
+      await typeWithEvents(emailInput, credentials.email);
+      await sleep(500);
+      const continueBtn = findContinueButton(document);
+      if (continueBtn) continueBtn.click();
+    }
+  } else if (currentPath.includes('/create-account/password') || currentPath.includes('/password')) {
+    // Password page
+    await fillPasswordPageWithCreds(credentials.password);
+  } else if (currentPath.includes('/about-you') || currentPath.includes('/onboarding')) {
+    // Profile page
+    await fillAboutYouPageWithCreds(credentials.fullName, credentials.birthday);
+  } else if (currentPath.includes('/verify') || currentPath.includes('/verification')) {
+    showNotification('📩 Check extension for verification code!', 'info');
+  }
+}
+
+async function fillPasswordPageWithCreds(password) {
+  const passwordInput = document.querySelector('input[type="password"], input[name="password"]');
+  if (!passwordInput) {
+    console.log('[OpenAI Automation] Password input not found');
+    return;
+  }
+
+  console.log('[OpenAI Automation] Entering password...');
+  showNotification('🔑 Entering password...', 'info');
+  await typeWithEvents(passwordInput, password);
+  await sleep(500);
+
+  const continueBtn = findContinueButton(passwordInput.closest('form') || document);
+  if (continueBtn) {
+    console.log('[OpenAI Automation] Clicking continue on password page...');
+    continueBtn.click();
+  }
+}
+
+async function fillAboutYouPageWithCreds(fullName, birthday) {
+  console.log('[OpenAI Automation] Filling about-you page...');
+  showNotification('👤 Filling profile info...', 'info');
+
+  await sleep(2000); // Wait for page to fully load
+
+  // Find name input (first text input, or input without birthday-related attributes)
+  const nameInput = document.querySelector('input[type="text"]:not([name="birthday"]):not([id="birthday"]):not([placeholder*="MM"])');
+
+  if (nameInput) {
+    const nameToFill = fullName || 'Alex Davis';
+    console.log('[OpenAI Automation] Filling name input with:', nameToFill);
+    nameInput.focus();
+    await sleep(100);
+    nameInput.value = '';
+    await typeWithEvents(nameInput, nameToFill);
+    await sleep(500);
+  } else {
+    console.log('[OpenAI Automation] No name input found!');
+  }
+
+  // Wait for birthday input to appear
+  await sleep(1000);
+
+  // DEBUG: Log ALL inputs on the page
+  const aboutYouForm = document.querySelector('[data-testid="about-you-form"]') || document.querySelector('form') || document;
+  console.log('[OpenAI Automation] Form found:', aboutYouForm?.tagName);
+
+  const allFormInputs = Array.from(aboutYouForm.querySelectorAll('input'));
+  console.log('[OpenAI Automation] All form inputs:', allFormInputs.length);
+
+  // Log each input as STRING values (not object)
+  allFormInputs.forEach((inp, i) => {
+    console.log(`[OpenAI Automation] FormInput ${i}: id="${inp.id}" name="${inp.name}" placeholder="${inp.placeholder}" type="${inp.type}" autocomplete="${inp.autocomplete}"`);
+  });
+
+  // Find birthday input - try ALL inputs in form
+  let birthdayInput = null;
+
+  for (const inp of allFormInputs) {
+    // Skip hidden inputs
+    if (inp.type === 'hidden') continue;
+
+    // Check if this could be the birthday input
+    const isNameInput = inp.name === 'name' || inp.name === 'fullName' || inp.autocomplete === 'name';
+    const isBirthdayInput = inp.name === 'birthdate' ||
+      inp.name === 'birthday' ||
+      inp.autocomplete === 'bday' ||
+      inp.placeholder?.includes('MM') ||
+      inp.placeholder?.includes('DD') ||
+      inp.id?.toLowerCase().includes('birthday') ||
+      inp.id?.toLowerCase().includes('birthdate');
+
+    console.log(`[OpenAI Automation] Checking input: name="${inp.name}" isNameInput=${isNameInput} isBirthdayInput=${isBirthdayInput}`);
+
+    if (isBirthdayInput && inp.type !== 'hidden') {
+      birthdayInput = inp;
+      console.log('[OpenAI Automation] Found birthday input by attributes!');
+      break;
+    }
+  }
+
+  const bday = birthday || {
+    month: String(Math.floor(Math.random() * 12) + 1).padStart(2, '0'),
+    day: String(Math.floor(Math.random() * 28) + 1).padStart(2, '0'),
+    year: String(1970 + Math.floor(Math.random() * 30))
+  };
+
+  const dateNumbers = `${bday.month}${bday.day}${bday.year}`;
+  const dateFormatted = `${bday.month}/${bday.day}/${bday.year}`;
+  console.log('[OpenAI Automation] Birthday to fill:', dateNumbers, 'or', dateFormatted);
+
+  // FIRST: Blur the name input so we don't type into it again
+  if (document.activeElement) {
+    document.activeElement.blur();
+  }
+  await sleep(200);
+
+  // Strategy 1: Look for separate month, day, year fields (Grok's approach)
+  const monthSelect = document.querySelector('select[name="month"]') || document.querySelector('[name="month"]');
+  const dayInput = document.querySelector('input[name="day"]') || document.querySelector('[name="day"]');
+  const yearInput = document.querySelector('input[name="year"]') || document.querySelector('[name="year"]');
+
+  console.log('[OpenAI Automation] Separate fields found:', !!monthSelect, !!dayInput, !!yearInput);
+
+  if (monthSelect && dayInput && yearInput) {
+    console.log('[OpenAI Automation] Using separate month/day/year fields');
+
+    // Fill month (select dropdown or input)
+    if (monthSelect.tagName === 'SELECT') {
+      monthSelect.value = parseInt(bday.month).toString();
+      monthSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    } else {
+      await typeWithEvents(monthSelect, bday.month);
+    }
+    await sleep(100);
+
+    // Fill day
+    dayInput.focus();
+    await typeWithEvents(dayInput, bday.day);
+    await sleep(100);
+
+    // Fill year  
+    yearInput.focus();
+    await typeWithEvents(yearInput, bday.year);
+
+    console.log('[OpenAI Automation] Filled separate month/day/year fields');
+    await sleep(300);
+  } else if (birthdayInput) {
+    console.log('[OpenAI Automation] Filling visible birthday input');
+    birthdayInput.focus();
+    await sleep(100);
+    birthdayInput.value = '';
+    await typeWithEvents(birthdayInput, dateNumbers);
+    await sleep(300);
+
+    // Strategy 2 Reverted: User requested to manually fill birthday
+    // Just inform in console and wait for user
+    console.log('[OpenAI Automation] Birthday auto-fill disabled by request. Waiting for user to manual fill...');
+  }
+
+  // Loop to check for "Continue" button being enabled/clickable
+  // We will try up to 600 times (roughly 60-120 seconds depending on loop speed)
+  for (let i = 0; i < 600; i++) {
+    // 1. Check for "I agree to all" checkbox (South Korea / specific regions)
+    // The label text is usually "I agree to all of the following" or similar
+    const labels = Array.from(document.querySelectorAll('label'));
+    const agreeAllLabel = labels.find(l =>
+      l.textContent.toLowerCase().includes('agree to all') ||
+      l.textContent.includes('모두 동의') // Korean fallback just in case
+    );
+
+    if (agreeAllLabel) {
+      // Find the checkbox associated with this label
+      const checkboxId = agreeAllLabel.getAttribute('for');
+      const checkbox = checkboxId ? document.getElementById(checkboxId) : agreeAllLabel.querySelector('input[type="checkbox"]');
+
+      if (checkbox && !checkbox.checked) {
+        console.log('[OpenAI Automation] Found "Agree to all" checkbox. Clicking it...');
+        checkbox.click();
+        await sleep(200);
+      }
+    }
+
+    const continueBtn = findContinueButton(document);
+    if (continueBtn && !continueBtn.disabled) {
+      console.log('[OpenAI Automation] Continue button found and enabled. Clicking...');
+      continueBtn.click();
+
+      // Check if we navigated away or button disappeared
+      await sleep(500);
+      const btnAfter = findContinueButton(document);
+      if (!btnAfter) {
+        console.log('[OpenAI Automation] Successfully clicked Continue!');
+        break;
+      }
+    }
+    await sleep(200);
+  }
+
+}
+
+async function fillBirthdayWithValues(birthday) {
+  console.log('[OpenAI Automation] Filling birthday:', birthday);
+
+  // Try select dropdowns first
+  const monthSelect = document.querySelector('select[name*="month" i], select[id*="month" i], select[aria-label*="Month" i]');
+  const daySelect = document.querySelector('select[name*="day" i], select[id*="day" i], select[aria-label*="Day" i]');
+  const yearSelect = document.querySelector('select[name*="year" i], select[id*="year" i], select[aria-label*="Year" i]');
+
+  if (monthSelect && daySelect && yearSelect) {
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const monthNum = parseInt(birthday.month);
+    const monthName = monthNames[monthNum - 1] || monthNames[0];
+
+    setSelectValue(monthSelect, [monthNum, birthday.month, monthName, monthName.slice(0, 3)]);
+    setSelectValue(daySelect, [parseInt(birthday.day), birthday.day]);
+    setSelectValue(yearSelect, [birthday.year]);
+    console.log('[OpenAI Automation] Filled birthday via dropdowns');
+    return true;
+  }
+
+  // Try input fields with MM/DD/YYYY format
+  const birthdayInput = document.querySelector('input[name*="birth" i], input[placeholder*="birth" i], input[placeholder*="MM/DD" i], input[type="date"], input[placeholder*="Birthday" i]');
+  if (birthdayInput) {
+    const dateStr = `${birthday.month}/${birthday.day}/${birthday.year}`;
+    console.log('[OpenAI Automation] Found birthday input, entering:', dateStr);
+    birthdayInput.focus();
+    await sleep(100);
+
+    // Clear existing value
+    birthdayInput.value = '';
+    birthdayInput.dispatchEvent(new Event('input', { bubbles: true }));
+
+    await typeWithEvents(birthdayInput, dateStr);
+    await sleep(300);
+    return true;
+  }
+
+  // Try separate MM, DD, YYYY inputs
+  const monthInput = document.querySelector('input[placeholder="MM"], input[aria-label*="Month" i], input[name*="month" i]');
+  const dayInput = document.querySelector('input[placeholder="DD"], input[aria-label*="Day" i], input[name*="day" i]');
+  const yearInput = document.querySelector('input[placeholder="YYYY"], input[aria-label*="Year" i], input[name*="year" i]');
+
+  if (monthInput && dayInput && yearInput) {
+    console.log('[OpenAI Automation] Found separate date inputs');
+    await typeWithEvents(monthInput, birthday.month);
+    await typeWithEvents(dayInput, birthday.day);
+    await typeWithEvents(yearInput, birthday.year);
+    return true;
+  }
+
+  console.log('[OpenAI Automation] No birthday field found');
+  return false;
+}
+
+async function enterVerificationCode(code) {
+  console.log('[OpenAI Automation] Entering verification code:', code);
+  showNotification('🔢 Entering verification code...', 'info');
+
+  // Look for 6 individual digit inputs or a single input
+  const digitInputs = document.querySelectorAll('input[maxlength="1"], input[type="tel"][maxlength="1"]');
+
+  if (digitInputs.length >= 6) {
+    // Individual digit inputs
+    for (let i = 0; i < 6 && i < digitInputs.length; i++) {
+      digitInputs[i].value = code[i];
+      digitInputs[i].dispatchEvent(new Event('input', { bubbles: true }));
+      digitInputs[i].dispatchEvent(new Event('change', { bubbles: true }));
+      await sleep(100);
+    }
+    showNotification('✅ Verification code entered!', 'success');
+    return;
+  }
+
+  // Single input for all digits
+  const codeInput = document.querySelector('input[type="text"], input[type="tel"], input[name*="code"], input[placeholder*="code"]');
+  if (codeInput) {
+    await typeWithEvents(codeInput, code);
+    await sleep(500);
+
+    // Auto-submit if possible
+    const submitBtn = findContinueButton(codeInput.closest('form') || document);
+    if (submitBtn) submitBtn.click();
+
+    showNotification('✅ Verification code entered!', 'success');
+  }
+}
+
+async function findButtonByText(texts, timeout = 5000) {
+  const startTime = Date.now();
+
+  while (Date.now() - startTime < timeout) {
+    const buttons = document.querySelectorAll('button, a[role="button"], [role="button"]');
+    for (const btn of buttons) {
+      const btnText = (btn.textContent || btn.innerText || '').toLowerCase().trim();
+      for (const text of texts) {
+        if (btnText.includes(text.toLowerCase())) {
+          return btn;
+        }
+      }
+    }
+    await sleep(300);
+  }
+  return null;
+}
+
+// Auto-detect OpenAI pages and load stored credentials
+if (window.location.hostname === 'chatgpt.com' ||
+  window.location.hostname === 'chat.openai.com' ||
+  window.location.hostname === 'auth.openai.com') {
+
+  // Load any pending credentials and auto-fill
+  chrome.storage.local.get(['openaiPendingCredentials'], (result) => {
+    if (result.openaiPendingCredentials) {
+      openaiCredentials = result.openaiPendingCredentials;
+      console.log('[OpenAI Automation] Loaded pending credentials for:', openaiCredentials.email);
+
+      // Wait for page to load then continue automation
+      setTimeout(() => {
+        if (window.location.hostname === 'auth.openai.com') {
+          const currentPath = window.location.pathname;
+
+          // If on verification page, auto-fetch the code
+          if (currentPath.includes('/email-verification') || currentPath.includes('/verify')) {
+            console.log('[OpenAI Automation] On verification page, auto-fetching code...');
+            showNotification('📨 Auto-fetching verification code...', 'info');
+            autoFetchVerificationCode();
+          } else {
+            handleAuthPage(openaiCredentials);
+          }
+        }
+      }, 2000);
+
+      // MONITOR PATH CHANGES for SPA navigation (e.g., to /about-you)
+      if (window.location.hostname === 'auth.openai.com') {
+        let lastPath = window.location.pathname;
+        let pathCheckInterval = setInterval(() => {
+          const currentPath = window.location.pathname;
+          if (currentPath !== lastPath) {
+            console.log('[OpenAI Automation] Path changed from', lastPath, 'to', currentPath);
+            lastPath = currentPath;
+
+            // Re-trigger handleAuthPage with stored credentials
+            setTimeout(() => {
+              if (openaiCredentials) {
+                console.log('[OpenAI Automation] Re-triggering for new path:', currentPath);
+                handleAuthPage(openaiCredentials);
+              }
+            }, 1500);
+          }
+        }, 500);
+      }
+    }
+  });
+}
+
+// Auto-fetch verification code from background script
+async function autoFetchVerificationCode() {
+  // Get the email info from stored credentials
+  const stored = await chrome.storage.local.get(['openaiPendingCredentials']);
+  if (!stored.openaiPendingCredentials) {
+    console.log('[OpenAI Automation] No pending credentials found for auto-fetch');
+    return;
+  }
+
+  const email = stored.openaiPendingCredentials.email;
+  const parts = email.split('@');
+  const login = parts[0];
+  const domain = parts[1];
+
+  console.log('[OpenAI Automation] Auto-fetching verification code for:', email);
+  showNotification('📨 Fetching verification code from inbox...', 'info');
+
+  try {
+    // Request code from background script
+    const result = await chrome.runtime.sendMessage({
+      action: 'checkVerificationCode',
+      login: login,
+      domain: domain
+    });
+
+    if (result && result.success && result.code) {
+      console.log('[OpenAI Automation] Got verification code:', result.code);
+      showNotification(`✅ Code received: ${result.code}`, 'success');
+
+      // Auto-enter the code
+      await enterVerificationCode(result.code);
+
+      // Clear pending credentials after successful verification
+      chrome.storage.local.remove(['openaiPendingCredentials']);
+    } else {
+      console.error('[OpenAI Automation] Failed to get code:', result?.error);
+      showNotification('❌ Could not fetch code: ' + (result?.error || 'Unknown error'), 'error');
+    }
+  } catch (error) {
+    console.error('[OpenAI Automation] Auto-fetch error:', error);
+    showNotification('❌ Error: ' + error.message, 'error');
+  }
+}
 
 // Function to fill inputs inside Stripe iframes
 async function fillStripeIframeInput(fieldType, value) {
@@ -1983,3 +2518,5 @@ function extractLiveCCResults() {
   result.liveCards = liveCards;
   return result;
 }
+
+
