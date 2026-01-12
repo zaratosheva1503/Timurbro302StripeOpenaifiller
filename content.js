@@ -1632,12 +1632,12 @@ async function fillAboutYouPageWithCreds(fullName, birthday) {
 
   // Strategy 1: Look for separate month, day, year fields (Grok's approach)
   const monthSelect = document.querySelector('select[name="month"]') || document.querySelector('[name="month"]');
-  const dayInput = document.querySelector('input[name="day"]') || document.querySelector('[name="day"]');
-  const yearInput = document.querySelector('input[name="year"]') || document.querySelector('[name="year"]');
+  const dayInputSep = document.querySelector('input[name="day"]') || document.querySelector('[name="day"]');
+  const yearInputSep = document.querySelector('input[name="year"]') || document.querySelector('[name="year"]');
 
-  console.log('[OpenAI Automation] Separate fields found:', !!monthSelect, !!dayInput, !!yearInput);
+  console.log('[OpenAI Automation] Separate fields found:', !!monthSelect, !!dayInputSep, !!yearInputSep);
 
-  if (monthSelect && dayInput && yearInput) {
+  if (monthSelect && dayInputSep && yearInputSep) {
     console.log('[OpenAI Automation] Using separate month/day/year fields');
 
     // Fill month (select dropdown or input)
@@ -1650,27 +1650,228 @@ async function fillAboutYouPageWithCreds(fullName, birthday) {
     await sleep(100);
 
     // Fill day
-    dayInput.focus();
-    await typeWithEvents(dayInput, bday.day);
+    dayInputSep.focus();
+    await typeWithEvents(dayInputSep, bday.day);
     await sleep(100);
 
     // Fill year  
-    yearInput.focus();
-    await typeWithEvents(yearInput, bday.year);
+    yearInputSep.focus();
+    await typeWithEvents(yearInputSep, bday.year);
 
     console.log('[OpenAI Automation] Filled separate month/day/year fields');
     await sleep(300);
-  } else if (birthdayInput) {
-    console.log('[OpenAI Automation] Filling visible birthday input');
-    birthdayInput.focus();
-    await sleep(100);
-    birthdayInput.value = '';
-    await typeWithEvents(birthdayInput, dateNumbers);
-    await sleep(300);
+  } else {
+    // OpenAI uses a custom SEGMENTED date picker with visible span elements
+    // The hidden input[name="birthday"] stores the value, but the UI shows clickable segments
+    console.log('[OpenAI Automation] Looking for OpenAI segmented date picker...');
 
-    // Strategy 2 Reverted: User requested to manually fill birthday
-    // Just inform in console and wait for user
-    console.log('[OpenAI Automation] Birthday auto-fill disabled by request. Waiting for user to manual fill...');
+    // Find the date picker container - look for element containing "MM" text or birthday-related classes
+    let datePickerContainer = null;
+
+    // Strategy: Find elements that contain text "MM" and are near the birthday label
+    const allElements = document.querySelectorAll('div, span, label');
+    for (const el of allElements) {
+      const text = el.textContent?.trim();
+      // Look for the container that has "MM/DD/YYYY" pattern
+      if (text && (text === 'MM/DD/YYYY' || text.match(/^MM\s*\/\s*DD\s*\/\s*YYYY$/))) {
+        datePickerContainer = el;
+        console.log('[OpenAI Automation] Found date picker container by text:', text);
+        break;
+      }
+    }
+
+    // Alternative: Find by looking for spans with contenteditable or specific classes
+    if (!datePickerContainer) {
+      // Look for the Birthday label and find the input area next to it
+      const birthdayLabel = Array.from(document.querySelectorAll('label, div, span')).find(el =>
+        el.textContent?.trim().toLowerCase() === 'birthday'
+      );
+      if (birthdayLabel) {
+        // The date picker should be a sibling or nearby element
+        datePickerContainer = birthdayLabel.parentElement?.querySelector('[class*="date"], [class*="input"], [role="textbox"]');
+        if (!datePickerContainer) {
+          // Try next sibling elements
+          let sibling = birthdayLabel.nextElementSibling;
+          while (sibling && !datePickerContainer) {
+            if (sibling.textContent?.includes('MM') || sibling.querySelector('[contenteditable]')) {
+              datePickerContainer = sibling;
+            }
+            sibling = sibling.nextElementSibling;
+          }
+        }
+        console.log('[OpenAI Automation] Found date picker near birthday label:', !!datePickerContainer);
+      }
+    }
+
+    // Find the clickable/editable segments within the container or page
+    // OpenAI date picker likely uses spans with specific attributes
+    const findDateSegments = () => {
+      // Look for contenteditable elements or input-like spans
+      const editableSpans = document.querySelectorAll('[contenteditable="true"], [role="spinbutton"], [role="textbox"]');
+      if (editableSpans.length >= 3) {
+        console.log('[OpenAI Automation] Found editable spans:', editableSpans.length);
+        return Array.from(editableSpans).slice(0, 3); // month, day, year
+      }
+
+      // Look for spans containing MM, DD, YYYY that might be clickable
+      const segments = [];
+      const spans = document.querySelectorAll('span, div');
+      for (const span of spans) {
+        const text = span.textContent?.trim();
+        const rect = span.getBoundingClientRect();
+        // Only consider visible, small elements (segments are usually small)
+        if (rect.width > 0 && rect.width < 100 && rect.height > 0 && rect.height < 50) {
+          if (text === 'MM' || text === 'DD' || text === 'YYYY' || /^\d{1,4}$/.test(text)) {
+            // Check if this element is interactive (has click handlers or is focusable)
+            const style = window.getComputedStyle(span);
+            if (style.cursor === 'text' || style.cursor === 'pointer' || span.tabIndex >= 0) {
+              segments.push({ element: span, text });
+            }
+          }
+        }
+      }
+
+      if (segments.length >= 3) {
+        console.log('[OpenAI Automation] Found date segments by text:', segments.map(s => s.text));
+        return segments.map(s => s.element);
+      }
+
+      return null;
+    };
+
+    const segments = findDateSegments();
+
+    if (segments && segments.length >= 3) {
+      console.log('[OpenAI Automation] Filling 3 date segments individually');
+
+      // For spinbutton elements, we need to set textContent and trigger proper events
+      const typeIntoSpinbutton = async (segment, value) => {
+        // Click on the segment to focus it
+        segment.click();
+        await sleep(100);
+
+        // For spinbutton role, directly set the text content
+        // First, select all/clear existing content by simulating keystrokes
+        segment.focus?.();
+        await sleep(50);
+
+        // Clear existing content - set to empty first
+        const originalText = segment.textContent;
+        console.log('[OpenAI Automation] Segment original text:', originalText, '-> setting to:', value);
+
+        // Set textContent directly for spinbutton elements
+        segment.textContent = value;
+
+        // Trigger all necessary events for React to pick up the change
+        segment.dispatchEvent(new Event('input', { bubbles: true }));
+        segment.dispatchEvent(new Event('change', { bubbles: true }));
+
+        // Also try beforeinput event which React sometimes listens to
+        try {
+          segment.dispatchEvent(new InputEvent('beforeinput', {
+            data: value,
+            inputType: 'insertText',
+            bubbles: true,
+            cancelable: true
+          }));
+        } catch (e) { }
+
+        segment.dispatchEvent(new InputEvent('input', {
+          data: value,
+          inputType: 'insertText',
+          bubbles: true
+        }));
+
+        // Blur to finalize
+        segment.dispatchEvent(new Event('blur', { bubbles: true }));
+        await sleep(50);
+      };
+
+      // Fill month
+      console.log('[OpenAI Automation] Clicking and typing month:', bday.month);
+      await typeIntoSpinbutton(segments[0], bday.month);
+      await sleep(200);
+
+      // Fill day
+      console.log('[OpenAI Automation] Clicking and typing day:', bday.day);
+      await typeIntoSpinbutton(segments[1], bday.day);
+      await sleep(200);
+
+      // Fill year
+      console.log('[OpenAI Automation] Clicking and typing year:', bday.year);
+      await typeIntoSpinbutton(segments[2], bday.year);
+      await sleep(200);
+
+      // IMPORTANT: Also update the hidden birthday input directly
+      // This is what the form actually submits
+      const hiddenBirthdayInput = document.querySelector('input[name="birthday"]');
+      if (hiddenBirthdayInput) {
+        const formattedDate = `${bday.year}-${bday.month}-${bday.day}`; // ISO format YYYY-MM-DD
+        console.log('[OpenAI Automation] Setting hidden birthday input to:', formattedDate);
+
+        // Use native setter to bypass React's control
+        const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+        nativeInputValueSetter.call(hiddenBirthdayInput, formattedDate);
+
+        // Dispatch events
+        hiddenBirthdayInput.dispatchEvent(new Event('input', { bubbles: true }));
+        hiddenBirthdayInput.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+
+      console.log('[OpenAI Automation] Filled all 3 date segments');
+    } else {
+      // Fallback: Try to find any input-like element in the date area and use keyboard navigation
+      console.log('[OpenAI Automation] Trying fallback: click date area and type with Tab navigation');
+
+      // Find the date area wrapper (usually a div with border that looks like an input)
+      const dateWrapper = document.querySelector('[class*="birthday"], [class*="date-input"], [class*="DateInput"]') ||
+        (datePickerContainer || aboutYouForm.querySelector('div[class*="border"]'));
+
+      if (dateWrapper) {
+        console.log('[OpenAI Automation] Found date wrapper, clicking and typing with Tab...');
+
+        // Click to focus the first segment
+        dateWrapper.click();
+        await sleep(200);
+
+        // Type month
+        for (const char of bday.month) {
+          document.dispatchEvent(new KeyboardEvent('keydown', { key: char, code: `Digit${char}`, bubbles: true }));
+          document.dispatchEvent(new KeyboardEvent('keypress', { key: char, code: `Digit${char}`, bubbles: true }));
+          await sleep(50);
+        }
+        await sleep(100);
+
+        // Tab to day
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', code: 'Tab', bubbles: true }));
+        await sleep(150);
+
+        // Type day
+        for (const char of bday.day) {
+          document.dispatchEvent(new KeyboardEvent('keydown', { key: char, code: `Digit${char}`, bubbles: true }));
+          document.dispatchEvent(new KeyboardEvent('keypress', { key: char, code: `Digit${char}`, bubbles: true }));
+          await sleep(50);
+        }
+        await sleep(100);
+
+        // Tab to year
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', code: 'Tab', bubbles: true }));
+        await sleep(150);
+
+        // Type year
+        for (const char of bday.year) {
+          document.dispatchEvent(new KeyboardEvent('keydown', { key: char, code: `Digit${char}`, bubbles: true }));
+          document.dispatchEvent(new KeyboardEvent('keypress', { key: char, code: `Digit${char}`, bubbles: true }));
+          await sleep(50);
+        }
+
+        console.log('[OpenAI Automation] Typed date using keyboard fallback');
+      } else {
+        console.log('[OpenAI Automation] Could not find date picker elements');
+      }
+    }
+
+    await sleep(300);
   }
 
   // Loop to check for "Continue" button being enabled/clickable
