@@ -637,6 +637,31 @@ async function fillCardForm() {
     if (isGooglePay) {
       console.log('✅ Google Pay detected, filling address fields...');
 
+      // ===== GOOGLE PAY DYNAMIC FORM HANDLING (COLLAPSED STATE) =====
+      // Check if we are in "Card number only" state
+      const initialCardNumInput = document.querySelector('input[placeholder*="Card number"]') || document.querySelector('input[aria-label*="Card number"]');
+      const expiryInput = document.querySelector('input[placeholder*="MM/YY"]') || document.querySelector('input[aria-label*="MM/YY"]') || document.querySelector('input[placeholder*="CVC"]');
+
+      if (initialCardNumInput && !expiryInput) {
+        console.log('[Zarif] Google Pay: Collapsed form detected (Stage 1)');
+        console.log('[Zarif] Google Pay: Filling Card Number first to trigger expansion...');
+
+        await simulateTyping(initialCardNumInput, card.card_number);
+        initialCardNumInput.dispatchEvent(new Event('change', { bubbles: true }));
+        initialCardNumInput.dispatchEvent(new Event('blur', { bubbles: true }));
+
+        console.log('[Zarif] Google Pay: Waiting for form expansion...');
+        await sleep(2000); // Wait for animation/render
+
+        // Wait up to 5 more seconds for expiry input to appear
+        let attempts = 0;
+        while (!document.querySelector('input[placeholder*="MM/YY"]') && !document.querySelector('input[placeholder*="CVC"]') && attempts < 10) {
+          await sleep(500);
+          attempts++;
+        }
+        console.log('[Zarif] Google Pay: Form expansion wait complete');
+      }
+
       // ===== GOOGLE WALLET SPECIFIC: Expand billing address and change country/state =====
       const isGoogleWallet = window.location.hostname.includes('wallet.google.com');
 
@@ -1219,6 +1244,33 @@ async function fillCardFormWithPrecard(card, randomData) {
     };
 
     // Find card number input
+
+    // ===== GOOGLE PAY DYNAMIC FORM HANDLING (COLLAPSED STATE) =====
+    if (isGooglePay) {
+      // Check if we are in "Card number only" state
+      const initialCardNumInput = document.querySelector('input[placeholder*="Card number"]') || document.querySelector('input[aria-label*="Card number"]');
+      const expiryInput = document.querySelector('input[placeholder*="MM/YY"]') || document.querySelector('input[aria-label*="MM/YY"]') || document.querySelector('input[placeholder*="CVC"]');
+
+      if (initialCardNumInput && !expiryInput) {
+        console.log('[Zarif] Google Pay (Pre-card): Collapsed form detected (Stage 1)');
+        console.log('[Zarif] Google Pay (Pre-card): Filling Card Number first to trigger expansion...');
+
+        await simulateTyping(initialCardNumInput, card.card_number);
+        initialCardNumInput.dispatchEvent(new Event('change', { bubbles: true }));
+        initialCardNumInput.dispatchEvent(new Event('blur', { bubbles: true }));
+
+        console.log('[Zarif] Google Pay (Pre-card): Waiting for form expansion...');
+        await sleep(2000); // Wait for animation/render
+
+        // Wait up to 5 more seconds for expiry input to appear
+        let attempts = 0;
+        while (!document.querySelector('input[placeholder*="MM/YY"]') && !document.querySelector('input[placeholder*="CVC"]') && attempts < 10) {
+          await sleep(500);
+          attempts++;
+        }
+        console.log('[Zarif] Google Pay (Pre-card): Form expansion wait complete');
+      }
+    }
     // SKIP FOR GOOGLE PAY (Late fill)
     if (!isGooglePay) {
       const cardNumberSelectors = [
