@@ -1140,7 +1140,32 @@ async function fillCardForm() {
       if (stateSelected) {
         console.log('✅ Google Pay: State selection SUCCESSFUL');
       } else {
-        console.log('[Zarif] Google Pay: WARNING - Could not change state. Manual selection required.');
+        console.log('[Zarif] Google Pay: UI State selection failed. Attempting direct input fallback...');
+
+        // Fallback 1: Direct hidden input (common in Google forms)
+        const stateInputs = document.querySelectorAll('input[name="REGION_CODE"], input[name="STATE"], input[name="ADMIN_AREA"]');
+        for (const input of stateInputs) {
+          // Map full state name to code if possible, or use full name
+          // For India, Google often uses codes like 'MH' for Maharashtra
+          // Simple mapping for common states:
+          let val = targetState;
+          if (targetState === 'Maharashtra') val = 'MH';
+          if (targetState === 'Delhi') val = 'DL';
+          if (targetState === 'Karnataka') val = 'KA';
+          if (targetState === 'Uttar Pradesh') val = 'UP';
+
+          input.value = val;
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+          console.log('[Zarif] Google Pay: Set hidden state input to', val);
+        }
+
+        // Fallback 2: Visible text input (if it's not a dropdown)
+        const visibleStateInput = findInputByLabel('State') || document.querySelector('input[placeholder="State"]');
+        if (visibleStateInput) {
+          await simulateTyping(visibleStateInput, targetState);
+          console.log('[Zarif] Google Pay: Filled visible State input');
+        }
       }
 
       console.log('✅ Google Pay: Address filling completed');
@@ -1157,13 +1182,38 @@ async function fillCardForm() {
         await sleep(300);
       }
 
-      // Expiry (MM/YY format)
-      const expInput = findInputByLabel('MM') || findInputByLabel('YY') || findInputByLabel('expir') || document.querySelector('input[placeholder="MM/YY"]');
-      if (expInput) {
-        console.log('[Zarif] Google Pay: Filling expiry');
-        const expiryStr = `${card.expiry_month}/${card.expiry_year.slice(-2)}`;
-        await simulateTyping(expInput, expiryStr);
+      // Expiry (Handle Split vs Combined)
+      const monthInput = document.querySelector('input[placeholder="MM"]');
+      const yearInput = document.querySelector('input[placeholder="YY"]') || document.querySelector('input[placeholder="Year"]');
+      const combinedInput = document.querySelector('input[placeholder="MM/YY"]') || document.querySelector('input[aria-label="MM/YY"]');
+
+      if (monthInput && yearInput) {
+        console.log('[Zarif] Google Pay: Found distinct Month/Year inputs');
+        await simulateTyping(monthInput, card.expiry_month);
         await sleep(300);
+        await simulateTyping(yearInput, card.expiry_year.slice(-2));
+        await sleep(300);
+      } else if (combinedInput || findInputByLabel('expir')) {
+        console.log('[Zarif] Google Pay: Found combined Expiry input');
+        const targetInput = combinedInput || findInputByLabel('expir');
+        const expiryStr = `${card.expiry_month}/${card.expiry_year.slice(-2)}`;
+        await simulateTyping(targetInput, expiryStr);
+        await sleep(300);
+      } else {
+        // Fallback: try finding by label "MM" if not found above
+        const mmLabelInput = findInputByLabel('MM');
+        if (mmLabelInput) {
+          console.log('[Zarif] Google Pay: Found Month input by label, assuming split');
+          await simulateTyping(mmLabelInput, card.expiry_month);
+          await sleep(300);
+
+          // Try to find year input next to it or by label
+          const yyLabelInput = findInputByLabel('YY') || findInputByLabel('Year');
+          if (yyLabelInput) {
+            await simulateTyping(yyLabelInput, card.expiry_year.slice(-2));
+            await sleep(300);
+          }
+        }
       }
 
       // CVC / Security code
@@ -1465,8 +1515,35 @@ async function fillCardFormWithPrecard(card, randomData) {
 
     // GOOGLE PAY LATE FILL
     if (isGooglePay) {
-      console.log('[Zarif] Google Pay (Pre-card): Late filling card details');
+      console.log('[Zarif] Google Pay (Pre-card): Late filling card details & checking State');
       await sleep(1000);
+
+      // State Fallback (Direct Set)
+      const targetState = data.state || 'Maharashtra';
+      console.log('[Zarif] Google Pay (Pre-card): Checking/Setting State:', targetState);
+
+      const stateInputs = document.querySelectorAll('input[name="REGION_CODE"], input[name="STATE"], input[name="ADMIN_AREA"]');
+      for (const input of stateInputs) {
+        let val = targetState;
+        if (targetState === 'Maharashtra') val = 'MH';
+        if (targetState === 'Delhi') val = 'DL';
+        if (targetState === 'Karnataka') val = 'KA';
+        if (targetState === 'Uttar Pradesh') val = 'UP';
+
+        if (!input.value || input.value !== val) {
+          input.value = val;
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+          console.log('[Zarif] Google Pay (Pre-card): Set hidden state input to', val);
+        }
+      }
+
+      const visibleStateInput = document.querySelector('input[placeholder="State"]');
+      if (visibleStateInput && !visibleStateInput.value) {
+        await simulateTyping(visibleStateInput, targetState);
+      }
+
+      await sleep(500);
 
       const findInputByLabel = (label) => {
         const labels = document.querySelectorAll('label');
@@ -1483,12 +1560,38 @@ async function fillCardFormWithPrecard(card, randomData) {
         await sleep(300);
       }
 
-      // Expiry
-      const expInput = findInputByLabel('MM/YY') || document.querySelector('input[placeholder*="MM/YY"]') || document.querySelector('input[aria-label*="MM/YY"]');
-      if (expInput) {
-        const expiryStr = `${card.expiry_month}/${card.expiry_year.slice(-2)}`;
-        await simulateTyping(expInput, expiryStr);
+      // Expiry (Handle Split vs Combined)
+      const monthInput = document.querySelector('input[placeholder="MM"]');
+      const yearInput = document.querySelector('input[placeholder="YY"]') || document.querySelector('input[placeholder="Year"]');
+      const combinedInput = document.querySelector('input[placeholder="MM/YY"]') || document.querySelector('input[aria-label="MM/YY"]');
+
+      if (monthInput && yearInput) {
+        console.log('[Zarif] Google Pay (Pre-card): Found distinct Month/Year inputs');
+        await simulateTyping(monthInput, card.expiry_month);
         await sleep(300);
+        await simulateTyping(yearInput, card.expiry_year.slice(-2));
+        await sleep(300);
+      } else if (combinedInput || findInputByLabel('expir')) {
+        console.log('[Zarif] Google Pay (Pre-card): Found combined Expiry input');
+        const targetInput = combinedInput || findInputByLabel('expir');
+        const expiryStr = `${card.expiry_month}/${card.expiry_year.slice(-2)}`;
+        await simulateTyping(targetInput, expiryStr);
+        await sleep(300);
+      } else {
+        // Fallback: try finding by label "MM" if not found above
+        const mmLabelInput = findInputByLabel('MM');
+        if (mmLabelInput) {
+          console.log('[Zarif] Google Pay (Pre-card): Found Month input by label, assuming split');
+          await simulateTyping(mmLabelInput, card.expiry_month);
+          await sleep(300);
+
+          // Try to find year input next to it or by label
+          const yyLabelInput = findInputByLabel('YY') || findInputByLabel('Year');
+          if (yyLabelInput) {
+            await simulateTyping(yyLabelInput, card.expiry_year.slice(-2));
+            await sleep(300);
+          }
+        }
       }
 
       // CVC
