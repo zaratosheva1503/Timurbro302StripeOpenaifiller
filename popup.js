@@ -174,7 +174,7 @@ function initializeGenerateTab() {
 
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
-    if (!tab.url.includes('checkout.stripe.com') && !tab.url.includes('pay.openai.com') && !tab.url.includes('chatgpt.com') && !tab.url.includes('payments.google.com') && !tab.url.includes('pay.google.com') && !tab.url.includes('wallet.google.com')) {
+    if (!tab.url.includes('checkout.stripe.com') && !tab.url.includes('pay.openai.com') && !tab.url.includes('chatgpt.com') && !tab.url.includes('payments.google.com') && !tab.url.includes('pay.google.com') && !tab.url.includes('wallet.google.com') && !tab.url.includes('one.google.com')) {
       updateStatus('❌ Please open a supported payment page first!', 'error');
       return;
     }
@@ -521,16 +521,50 @@ function showLiveCCResults(liveCards) {
       };
 
       // Save to storage and trigger autofill
+      // Determine country and address details
+      const selectedCountry = liveccCountrySelect ? liveccCountrySelect.value : 'KR';
+      let addressData = {
+        name: 'Seojun Lim',
+        address: '123 Gangnam-daero',
+        city: 'Seoul',
+        zip: '06130',
+        state: 'Seoul',
+        country: 'KR'
+      };
+
+      if (selectedCountry === 'IN') {
+        addressData = {
+          name: 'Rajesh Kumar',
+          address: '12 MG Road',
+          city: 'Mumbai',
+          zip: '400001',
+          state: 'Maharashtra',
+          country: 'IN'
+        };
+      } else if (selectedCountry === 'US') {
+        addressData = {
+          name: 'John Smith',
+          address: '456 Market St',
+          city: 'New York',
+          zip: '10001',
+          state: 'New York',
+          country: 'US'
+        };
+      } else if (selectedCountry === 'GB') {
+        addressData = {
+          name: 'James Wilson',
+          address: '10 Downing St',
+          city: 'London',
+          zip: 'SW1A 2AA',
+          state: 'London',
+          country: 'GB'
+        };
+      }
+
+      // Save to storage and trigger autofill
       await chrome.storage.local.set({
         generatedCards: [cardData],
-        randomData: {
-          name: 'Seojun Lim',
-          address: '123 Gangnam-daero',
-          city: 'Seoul',
-          zip: '06130',
-          state: 'Seoul',
-          country: 'KR'
-        }
+        randomData: addressData
       });
 
       // Get active tab and send fill command

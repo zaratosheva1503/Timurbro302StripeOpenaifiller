@@ -195,200 +195,203 @@ async function fillCardForm() {
     // Check if we're on a Stripe checkout page with iframes
     const isStripeCheckout = window.location.hostname.includes('checkout.stripe.com');
     const isChatGPTCheckout = window.location.hostname.includes('chatgpt.com');
-    const isGooglePay = window.location.hostname.includes('payments.google.com') || window.location.hostname.includes('pay.google.com') || window.location.hostname.includes('wallet.google.com');
+    const isGooglePay = window.location.hostname.includes('payments.google.com') || window.location.hostname.includes('pay.google.com') || window.location.hostname.includes('wallet.google.com') || window.location.hostname.includes('one.google.com');
 
     // For Stripe checkout, look for the specific input patterns they use
-    const cardNumberSelectors = [
-      'input[name="cardNumber"]',
-      'input[placeholder*="1234"]',
-      'input[placeholder*="Card number"]',
-      'input[data-elements-stable-field-name="cardNumber"]',
-      'input[autocomplete="cc-number"]',
-      '#cardNumber',
-      'input[aria-label*="Card number"]',
-      'input[name="number"]',
-      // Stripe specific
-      'input.InputElement[name="cardnumber"]',
-      'input[data-stripe="number"]',
-      // ChatGPT checkout specific
-      'input[placeholder="Card number"]',
-      'input[id*="cardNumber"]',
-      'input[data-testid*="card-number"]',
-      // Google Pay specific
-      'input[aria-label="Card number"]',
-      'input[placeholder="Card number"]'
-    ];
+    // SKIP FOR GOOGLE PAY (It will be handled late to prevent country reset)
+    if (!isGooglePay) {
+      const cardNumberSelectors = [
+        'input[name="cardNumber"]',
+        'input[placeholder*="1234"]',
+        'input[placeholder*="Card number"]',
+        'input[data-elements-stable-field-name="cardNumber"]',
+        'input[autocomplete="cc-number"]',
+        '#cardNumber',
+        'input[aria-label*="Card number"]',
+        'input[name="number"]',
+        // Stripe specific
+        'input.InputElement[name="cardnumber"]',
+        'input[data-stripe="number"]',
+        // ChatGPT checkout specific
+        'input[placeholder="Card number"]',
+        'input[id*="cardNumber"]',
+        'input[data-testid*="card-number"]',
+        // Google Pay specific
+        'input[aria-label="Card number"]',
+        'input[placeholder="Card number"]'
+      ];
 
-    let cardNumberInput = findInput(cardNumberSelectors);
+      let cardNumberInput = findInput(cardNumberSelectors);
 
-    // Fallback: find by label text for ChatGPT checkout
-    if (!cardNumberInput && isChatGPTCheckout) {
-      cardNumberInput = findInputByLabel('Card number') || findInputByPlaceholder('card');
-    }
+      // Fallback: find by label text for ChatGPT checkout
+      if (!cardNumberInput && isChatGPTCheckout) {
+        cardNumberInput = findInputByLabel('Card number') || findInputByPlaceholder('card');
+      }
 
-    // Fallback for Google Pay
-    if (!cardNumberInput && isGooglePay) {
-      cardNumberInput = findInputByLabel('Card number') || findInputByPlaceholder('Card number');
-    }
+      // Fallback for Google Pay
+      if (!cardNumberInput && isGooglePay) {
+        cardNumberInput = findInputByLabel('Card number') || findInputByPlaceholder('Card number');
+      }
 
-    // Try to fill Stripe iframes if on ChatGPT checkout
-    let filledViaIframe = false;
-    if (isChatGPTCheckout) {
-      filledViaIframe = await tryFillStripeIframes(card);
-    }
+      // Try to fill Stripe iframes if on ChatGPT checkout
+      let filledViaIframe = false;
+      if (isChatGPTCheckout) {
+        filledViaIframe = await tryFillStripeIframes(card);
+      }
 
-    if (cardNumberInput) {
-      console.log('✅ Found card number input');
-      await simulateTyping(cardNumberInput, card.card_number);
-      await sleep(400);
-    } else if (!filledViaIframe) {
-      console.log('❌ Card number input not found, trying alternative approach');
-      // Try to find any visible card-related input
-      const allInputs = document.querySelectorAll('input');
-      for (const input of allInputs) {
-        const placeholder = (input.getAttribute('placeholder') || '').toLowerCase();
-        if (placeholder.includes('card') || placeholder.includes('1234')) {
-          console.log('✅ Found card input via fallback');
-          await simulateTyping(input, card.card_number);
-          await sleep(400);
-          break;
+      if (cardNumberInput) {
+        console.log('✅ Found card number input');
+        await simulateTyping(cardNumberInput, card.card_number);
+        await sleep(400);
+      } else if (!filledViaIframe) {
+        console.log('❌ Card number input not found, trying alternative approach');
+        // Try to find any visible card-related input
+        const allInputs = document.querySelectorAll('input');
+        for (const input of allInputs) {
+          const placeholder = (input.getAttribute('placeholder') || '').toLowerCase();
+          if (placeholder.includes('card') || placeholder.includes('1234')) {
+            console.log('✅ Found card input via fallback');
+            await simulateTyping(input, card.card_number);
+            await sleep(400);
+            break;
+          }
         }
       }
-    }
 
-    // Find expiry input - handle both combined and separate month/year
-    const expirySelectors = [
-      'input[name="cardExpiry"]',
-      'input[placeholder*="MM"]',
-      'input[placeholder*="Expir"]',
-      'input[data-elements-stable-field-name="cardExpiry"]',
-      'input[autocomplete="cc-exp"]',
-      'input[aria-label*="Expir"]',
-      'input[name="expiry"]',
-      'input.InputElement[name="exp-date"]',
-      // ChatGPT checkout specific
-      'input[placeholder="Expiration date"]',
-      'input[id*="expir"]',
-      'input[data-testid*="expir"]',
-      // Google Pay specific
-      'input[placeholder="MM/YY"]',
-      'input[aria-label*="MM/YY"]'
-    ];
+      // Find expiry input - handle both combined and separate month/year
+      const expirySelectors = [
+        'input[name="cardExpiry"]',
+        'input[placeholder*="MM"]',
+        'input[placeholder*="Expir"]',
+        'input[data-elements-stable-field-name="cardExpiry"]',
+        'input[autocomplete="cc-exp"]',
+        'input[aria-label*="Expir"]',
+        'input[name="expiry"]',
+        'input.InputElement[name="exp-date"]',
+        // ChatGPT checkout specific
+        'input[placeholder="Expiration date"]',
+        'input[id*="expir"]',
+        'input[data-testid*="expir"]',
+        // Google Pay specific
+        'input[placeholder="MM/YY"]',
+        'input[aria-label*="MM/YY"]'
+      ];
 
-    let expiryInput = findInput(expirySelectors);
+      let expiryInput = findInput(expirySelectors);
 
-    // Fallback for ChatGPT checkout
-    if (!expiryInput && isChatGPTCheckout) {
-      expiryInput = findInputByLabel('Expiration') || findInputByPlaceholder('expir');
-    }
+      // Fallback for ChatGPT checkout
+      if (!expiryInput && isChatGPTCheckout) {
+        expiryInput = findInputByLabel('Expiration') || findInputByPlaceholder('expir');
+      }
 
-    // Fallback for Google Pay
-    if (!expiryInput && isGooglePay) {
-      expiryInput = findInputByPlaceholder('MM/YY') || findInputByLabel('MM/YY');
-    }
+      // Fallback for Google Pay
+      if (!expiryInput && isGooglePay) {
+        expiryInput = findInputByPlaceholder('MM/YY') || findInputByLabel('MM/YY');
+      }
 
-    if (expiryInput) {
-      console.log('✅ Found expiry input');
-      const expiryStr = `${card.expiry_month}/${card.expiry_year.slice(-2)}`;
-      await simulateTyping(expiryInput, expiryStr);
-      await sleep(400);
-    } else {
-      // Try separate month/year fields
-      const monthInput = document.querySelector('input[name*="month"], select[name*="month"]');
-      const yearInput = document.querySelector('input[name*="year"], select[name*="year"]');
-      if (monthInput && yearInput) {
-        console.log('✅ Found separate month/year inputs');
-        if (monthInput.tagName === 'SELECT') {
-          monthInput.value = card.expiry_month;
-          monthInput.dispatchEvent(new Event('change', { bubbles: true }));
-        } else {
-          await simulateTyping(monthInput, card.expiry_month);
+      if (expiryInput) {
+        console.log('✅ Found expiry input');
+        const expiryStr = `${card.expiry_month}/${card.expiry_year.slice(-2)}`;
+        await simulateTyping(expiryInput, expiryStr);
+        await sleep(400);
+      } else {
+        // Try separate month/year fields
+        const monthInput = document.querySelector('input[name*="month"], select[name*="month"]');
+        const yearInput = document.querySelector('input[name*="year"], select[name*="year"]');
+        if (monthInput && yearInput) {
+          console.log('✅ Found separate month/year inputs');
+          if (monthInput.tagName === 'SELECT') {
+            monthInput.value = card.expiry_month;
+            monthInput.dispatchEvent(new Event('change', { bubbles: true }));
+          } else {
+            await simulateTyping(monthInput, card.expiry_month);
+          }
+          await sleep(200);
+          if (yearInput.tagName === 'SELECT') {
+            yearInput.value = card.expiry_year.slice(-2);
+            yearInput.dispatchEvent(new Event('change', { bubbles: true }));
+          } else {
+            await simulateTyping(yearInput, card.expiry_year.slice(-2));
+          }
+          await sleep(400);
         }
-        await sleep(200);
-        if (yearInput.tagName === 'SELECT') {
-          yearInput.value = card.expiry_year.slice(-2);
-          yearInput.dispatchEvent(new Event('change', { bubbles: true }));
-        } else {
-          await simulateTyping(yearInput, card.expiry_year.slice(-2));
-        }
+      }
+
+      // Find CVC input
+      const cvcSelectors = [
+        'input[name="cardCvc"]',
+        'input[placeholder*="CVC"]',
+        'input[placeholder*="CVV"]',
+        'input[placeholder*="Security"]',
+        'input[data-elements-stable-field-name="cardCvc"]',
+        'input[autocomplete="cc-csc"]',
+        'input[aria-label*="CVC"]',
+        'input[aria-label*="security code"]',
+        'input[name="cvc"]',
+        'input.InputElement[name="cvc"]',
+        // ChatGPT checkout specific
+        'input[placeholder="Security code"]',
+        'input[id*="cvc"]',
+        'input[id*="cvv"]',
+        'input[data-testid*="security"]',
+        // Google Pay specific
+        'input[placeholder="CVV"]',
+        'input[aria-label="CVV"]'
+      ];
+
+      let cvcInput = findInput(cvcSelectors);
+
+      // Fallback for ChatGPT checkout
+      if (!cvcInput && isChatGPTCheckout) {
+        cvcInput = findInputByLabel('Security') || findInputByLabel('CVC') || findInputByLabel('CVV');
+      }
+
+      // Fallback for Google Pay
+      if (!cvcInput && isGooglePay) {
+        cvcInput = findInputByPlaceholder('CVV') || findInputByLabel('CVV');
+      }
+
+      if (cvcInput) {
+        console.log('✅ Found CVC input');
+        await simulateTyping(cvcInput, card.cvv);
         await sleep(400);
       }
-    }
 
-    // Find CVC input
-    const cvcSelectors = [
-      'input[name="cardCvc"]',
-      'input[placeholder*="CVC"]',
-      'input[placeholder*="CVV"]',
-      'input[placeholder*="Security"]',
-      'input[data-elements-stable-field-name="cardCvc"]',
-      'input[autocomplete="cc-csc"]',
-      'input[aria-label*="CVC"]',
-      'input[aria-label*="security code"]',
-      'input[name="cvc"]',
-      'input.InputElement[name="cvc"]',
-      // ChatGPT checkout specific
-      'input[placeholder="Security code"]',
-      'input[id*="cvc"]',
-      'input[id*="cvv"]',
-      'input[data-testid*="security"]',
-      // Google Pay specific
-      'input[placeholder="CVV"]',
-      'input[aria-label="CVV"]'
-    ];
+      // Find cardholder name input
+      const nameSelectors = [
+        'input[name="billingName"]',
+        'input[placeholder*="Full name"]',
+        'input[placeholder*="Name on card"]',
+        'input[placeholder*="Cardholder"]',
+        'input[autocomplete="cc-name"]',
+        'input[aria-label*="name"]',
+        'input[name*="name"]:not([name*="email"]):not([name*="user"])',
+        // ChatGPT checkout specific
+        'input[placeholder="Full name"]',
+        'input[id*="fullName"]',
+        'input[data-testid*="name"]',
+        // Google Pay specific
+        'input[placeholder="Cardholder name"]',
+        'input[aria-label="Cardholder name"]'
+      ];
 
-    let cvcInput = findInput(cvcSelectors);
+      let nameInput = findInput(nameSelectors);
 
-    // Fallback for ChatGPT checkout
-    if (!cvcInput && isChatGPTCheckout) {
-      cvcInput = findInputByLabel('Security') || findInputByLabel('CVC') || findInputByLabel('CVV');
-    }
+      // Fallback for ChatGPT checkout
+      if (!nameInput && isChatGPTCheckout) {
+        nameInput = findInputByLabel('Full name') || findInputByLabel('Name');
+      }
 
-    // Fallback for Google Pay
-    if (!cvcInput && isGooglePay) {
-      cvcInput = findInputByPlaceholder('CVV') || findInputByLabel('CVV');
-    }
+      // Fallback for Google Pay
+      if (!nameInput && isGooglePay) {
+        nameInput = findInputByPlaceholder('Cardholder name') || findInputByLabel('Cardholder');
+      }
 
-    if (cvcInput) {
-      console.log('✅ Found CVC input');
-      await simulateTyping(cvcInput, card.cvv);
-      await sleep(400);
-    }
-
-    // Find cardholder name input
-    const nameSelectors = [
-      'input[name="billingName"]',
-      'input[placeholder*="Full name"]',
-      'input[placeholder*="Name on card"]',
-      'input[placeholder*="Cardholder"]',
-      'input[autocomplete="cc-name"]',
-      'input[aria-label*="name"]',
-      'input[name*="name"]:not([name*="email"]):not([name*="user"])',
-      // ChatGPT checkout specific
-      'input[placeholder="Full name"]',
-      'input[id*="fullName"]',
-      'input[data-testid*="name"]',
-      // Google Pay specific
-      'input[placeholder="Cardholder name"]',
-      'input[aria-label="Cardholder name"]'
-    ];
-
-    let nameInput = findInput(nameSelectors);
-
-    // Fallback for ChatGPT checkout
-    if (!nameInput && isChatGPTCheckout) {
-      nameInput = findInputByLabel('Full name') || findInputByLabel('Name');
-    }
-
-    // Fallback for Google Pay
-    if (!nameInput && isGooglePay) {
-      nameInput = findInputByPlaceholder('Cardholder name') || findInputByLabel('Cardholder');
-    }
-
-    if (nameInput) {
-      console.log('✅ Found name input');
-      await simulateTyping(nameInput, randomData.name);
-      await sleep(300);
+      if (nameInput) {
+        console.log('✅ Found name input');
+        await simulateTyping(nameInput, randomData.name);
+        await sleep(300);
+      }
     }
 
     // Handle country select (find the right one for billing)
@@ -1116,6 +1119,44 @@ async function fillCardForm() {
       }
 
       console.log('✅ Google Pay: Address filling completed');
+
+      // ===== STEP 3: FILL CARD DETAILS (After country & address) =====
+      console.log('[Zarif] Google Pay: Step 3 - Filling Card Details (Late Fill)');
+      await sleep(1000);
+
+      // Card number
+      const cardNumInput = findInputByLabel('Card number') || findInputByLabel('card') || document.querySelector('input[placeholder*="Card number"]');
+      if (cardNumInput) {
+        console.log('[Zarif] Google Pay: Filling card number');
+        await simulateTyping(cardNumInput, card.card_number);
+        await sleep(300);
+      }
+
+      // Expiry (MM/YY format)
+      const expInput = findInputByLabel('MM') || findInputByLabel('YY') || findInputByLabel('expir') || document.querySelector('input[placeholder="MM/YY"]');
+      if (expInput) {
+        console.log('[Zarif] Google Pay: Filling expiry');
+        const expiryStr = `${card.expiry_month}/${card.expiry_year.slice(-2)}`;
+        await simulateTyping(expInput, expiryStr);
+        await sleep(300);
+      }
+
+      // CVC / Security code
+      const cvcInp = findInputByLabel('Security code') || findInputByLabel('CVC') || findInputByLabel('CVV') || findInputByLabel('security') || document.querySelector('input[placeholder="CVC"]');
+      if (cvcInp) {
+        console.log('[Zarif] Google Pay: Filling CVC');
+        await simulateTyping(cvcInp, card.cvv);
+        await sleep(300);
+      }
+
+      // Cardholder name
+      const nameInp = findInputByLabel('Cardholder name') || findInputByLabel('name on card') || findInputByLabel('cardholder') || document.querySelector('input[placeholder="Cardholder name"]');
+      if (nameInp) {
+        console.log('[Zarif] Google Pay: Filling name');
+        await simulateTyping(nameInp, randomData.name);
+        await sleep(300);
+      }
+
     }
 
     showNotification('✅ All details filled successfully!', 'success');
@@ -1136,6 +1177,7 @@ async function fillCardFormWithPrecard(card, randomData) {
   isProcessing = true;
 
   try {
+    const isGooglePay = window.location.hostname.includes('payments.google.com') || window.location.hostname.includes('pay.google.com') || window.location.hostname.includes('wallet.google.com') || window.location.hostname.includes('one.google.com');
     const defaultData = {
       name: 'Minho Kim',
       address: '123 Gangnam-daero',
@@ -1150,6 +1192,7 @@ async function fillCardFormWithPrecard(card, randomData) {
     const selectedCountry = data.country || 'KR';
 
     showNotification('🔄 Auto-filling with pre-card details...', 'info');
+
 
     await sleep(500);
 
@@ -1176,61 +1219,64 @@ async function fillCardFormWithPrecard(card, randomData) {
     };
 
     // Find card number input
-    const cardNumberSelectors = [
-      'input[placeholder*="1234"]',
-      'input[placeholder*="Card number"]',
-      'input[name*="cardNumber"]',
-      'input[autocomplete="cc-number"]',
-      'input[aria-label*="Card number"]'
-    ];
+    // SKIP FOR GOOGLE PAY (Late fill)
+    if (!isGooglePay) {
+      const cardNumberSelectors = [
+        'input[placeholder*="1234"]',
+        'input[placeholder*="Card number"]',
+        'input[name*="cardNumber"]',
+        'input[autocomplete="cc-number"]',
+        'input[aria-label*="Card number"]'
+      ];
 
-    const cardNumberInput = findInput(cardNumberSelectors);
-    if (cardNumberInput) {
-      await simulateTyping(cardNumberInput, card.card_number);
-      await sleep(300);
-    }
+      const cardNumberInput = findInput(cardNumberSelectors);
+      if (cardNumberInput) {
+        await simulateTyping(cardNumberInput, card.card_number);
+        await sleep(300);
+      }
 
-    // Find expiry input
-    const expirySelectors = [
-      'input[placeholder*="MM"]',
-      'input[placeholder*="Expir"]',
-      'input[autocomplete="cc-exp"]',
-      'input[aria-label*="Expir"]'
-    ];
+      // Find expiry input
+      const expirySelectors = [
+        'input[placeholder*="MM"]',
+        'input[placeholder*="Expir"]',
+        'input[autocomplete="cc-exp"]',
+        'input[aria-label*="Expir"]'
+      ];
 
-    const expiryInput = findInput(expirySelectors);
-    if (expiryInput) {
-      const expiryStr = `${card.expiry_month}/${card.expiry_year.slice(-2)}`;
-      await simulateTyping(expiryInput, expiryStr);
-      await sleep(300);
-    }
+      const expiryInput = findInput(expirySelectors);
+      if (expiryInput) {
+        const expiryStr = `${card.expiry_month}/${card.expiry_year.slice(-2)}`;
+        await simulateTyping(expiryInput, expiryStr);
+        await sleep(300);
+      }
 
-    // Find CVC input
-    const cvcSelectors = [
-      'input[placeholder*="CVC"]',
-      'input[placeholder*="CVV"]',
-      'input[autocomplete="cc-csc"]',
-      'input[aria-label*="CVC"]'
-    ];
+      // Find CVC input
+      const cvcSelectors = [
+        'input[placeholder*="CVC"]',
+        'input[placeholder*="CVV"]',
+        'input[autocomplete="cc-csc"]',
+        'input[aria-label*="CVC"]'
+      ];
 
-    const cvcInput = findInput(cvcSelectors);
-    if (cvcInput) {
-      await simulateTyping(cvcInput, card.cvv);
-      await sleep(300);
-    }
+      const cvcInput = findInput(cvcSelectors);
+      if (cvcInput) {
+        await simulateTyping(cvcInput, card.cvv);
+        await sleep(300);
+      }
 
-    // Find name input
-    const nameSelectors = [
-      'input[placeholder*="Full name"]',
-      'input[placeholder*="Name on card"]',
-      'input[autocomplete="cc-name"]'
-    ];
+      // Find name input
+      const nameSelectors = [
+        'input[placeholder*="Full name"]',
+        'input[placeholder*="Name on card"]',
+        'input[autocomplete="cc-name"]'
+      ];
 
-    const nameInput = findInput(nameSelectors);
-    if (nameInput) {
-      await simulateTyping(nameInput, data.name);
-      await sleep(300);
-    }
+      const nameInput = findInput(nameSelectors);
+      if (nameInput) {
+        await simulateTyping(nameInput, data.name);
+        await sleep(300);
+      }
+    } // End if (!isGooglePay)
 
     // Handle country select - dynamic based on selected country
     const countrySelect = document.querySelector('select');
@@ -1362,6 +1408,49 @@ async function fillCardFormWithPrecard(card, randomData) {
         await simulateTyping(input, data.zip);
       } else if (combined.includes('district') || combined.includes('state') || combined.includes('province')) {
         await simulateTyping(input, data.state);
+      }
+    }
+
+    // GOOGLE PAY LATE FILL
+    if (isGooglePay) {
+      console.log('[Zarif] Google Pay (Pre-card): Late filling card details');
+      await sleep(1000);
+
+      const findInputByLabel = (label) => {
+        const labels = document.querySelectorAll('label');
+        for (const l of labels) {
+          if (l.textContent.includes(label)) return document.getElementById(l.getAttribute('for'));
+        }
+        return null;
+      };
+
+      // Card number
+      const cardNumInput = findInputByLabel('Card number') || document.querySelector('input[placeholder*="Card number"]') || document.querySelector('input[aria-label*="Card number"]');
+      if (cardNumInput) {
+        await simulateTyping(cardNumInput, card.card_number);
+        await sleep(300);
+      }
+
+      // Expiry
+      const expInput = findInputByLabel('MM/YY') || document.querySelector('input[placeholder*="MM/YY"]') || document.querySelector('input[aria-label*="MM/YY"]');
+      if (expInput) {
+        const expiryStr = `${card.expiry_month}/${card.expiry_year.slice(-2)}`;
+        await simulateTyping(expInput, expiryStr);
+        await sleep(300);
+      }
+
+      // CVC
+      const cvcInput = findInputByLabel('CVC') || document.querySelector('input[placeholder*="CVC"]') || document.querySelector('input[aria-label*="CVC"]');
+      if (cvcInput) {
+        await simulateTyping(cvcInput, card.cvv);
+        await sleep(300);
+      }
+
+      // Name
+      const nameInput = findInputByLabel('Cardholder name') || document.querySelector('input[placeholder*="Cardholder name"]');
+      if (nameInput) {
+        await simulateTyping(nameInput, data.name);
+        await sleep(300);
       }
     }
 
