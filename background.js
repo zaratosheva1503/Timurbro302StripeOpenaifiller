@@ -134,6 +134,43 @@ const USA_STREETS = [
   "First Street", "Second Avenue", "Third Street", "Lake Drive", "River Road"
 ];
 
+// German First Names
+const GERMAN_FIRST_NAMES = [
+  "Maximilian", "Alexander", "Leon", "Paul", "Lukas", "Felix", "Jonas", "Noah",
+  "Elias", "Ben", "Finn", "Julian", "Luca", "Tim", "David", "Moritz",
+  "Emma", "Mia", "Hannah", "Sophia", "Anna", "Marie", "Lena", "Emilia",
+  "Lea", "Clara", "Laura", "Lina", "Sophie", "Johanna", "Lisa", "Julia"
+];
+
+// German Last Names
+const GERMAN_LAST_NAMES = [
+  "Müller", "Schmidt", "Schneider", "Fischer", "Weber", "Meyer", "Wagner", "Becker",
+  "Schulz", "Hoffmann", "Schäfer", "Koch", "Bauer", "Richter", "Klein", "Wolf",
+  "Schröder", "Neumann", "Schwarz", "Zimmermann", "Braun", "Krüger", "Hofmann", "Hartmann",
+  "Lange", "Schmitt", "Werner", "Schmitz", "Krause", "Meier", "Lehmann", "Schmid"
+];
+
+// German Cities
+const GERMAN_CITIES = [
+  { city: "Berlin", state: "Berlin", zip: "10115" },
+  { city: "Hamburg", state: "Hamburg", zip: "20095" },
+  { city: "München", state: "Bayern", zip: "80331" },
+  { city: "Köln", state: "Nordrhein-Westfalen", zip: "50667" },
+  { city: "Frankfurt", state: "Hessen", zip: "60311" },
+  { city: "Stuttgart", state: "Baden-Württemberg", zip: "70173" },
+  { city: "Düsseldorf", state: "Nordrhein-Westfalen", zip: "40213" },
+  { city: "Leipzig", state: "Sachsen", zip: "04109" },
+  { city: "Dortmund", state: "Nordrhein-Westfalen", zip: "44135" },
+  { city: "Essen", state: "Nordrhein-Westfalen", zip: "45127" }
+];
+
+// German Streets
+const GERMAN_STREETS = [
+  "Hauptstraße", "Bahnhofstraße", "Gartenstraße", "Berliner Straße", "Schillerstraße",
+  "Goethestraße", "Mozartstraße", "Kirchstraße", "Friedrichstraße", "Marktplatz",
+  "Ringstraße", "Waldstraße", "Bergstraße", "Lindenstraße", "Poststraße"
+];
+
 function randomChoice(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
@@ -484,6 +521,22 @@ function generateRandomData(country = 'IN') {
       zip: cityData.zip,
       state: cityData.state,
       country: 'US'
+    };
+  }
+
+  if (country === 'DE' || country === 'GERMANY') {
+    // Generate unique German data
+    const cityData = randomChoice(GERMAN_CITIES);
+    const houseNumber = Math.floor(Math.random() * 200) + 1;
+    const street = randomChoice(GERMAN_STREETS);
+    return {
+      name: `${randomChoice(GERMAN_FIRST_NAMES)} ${randomChoice(GERMAN_LAST_NAMES)}`,
+      address: `${street} ${houseNumber}`,
+      address2: '',
+      city: cityData.city,
+      zip: cityData.zip,
+      state: cityData.state,
+      country: 'DE'
     };
   }
 

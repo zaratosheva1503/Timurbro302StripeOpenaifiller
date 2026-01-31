@@ -464,6 +464,12 @@ async function fillCardForm() {
           countryFound = true;
           console.log('✅ Selected South Korea');
           break;
+        } else if (selectedCountry === 'DE' && (optValue === 'DE' || optText.includes('germany') || optText.includes('deutschland'))) {
+          countrySelect.value = opt.value;
+          countrySelect.dispatchEvent(new Event('change', { bubbles: true }));
+          countryFound = true;
+          console.log('✅ Selected Germany');
+          break;
         }
       }
 
@@ -559,6 +565,16 @@ async function fillCardForm() {
                 break;
               }
             }
+          } else if (selectedCountry === 'DE') {
+            for (const opt of options) {
+              if (opt.textContent.toLowerCase().includes('berlin') || opt.value.toLowerCase().includes('berlin')) {
+                console.log('✅ Found and selecting Berlin (fallback)');
+                stateSelect.value = opt.value;
+                stateSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                stateFound = true;
+                break;
+              }
+            }
           }
         }
 
@@ -623,6 +639,15 @@ async function fillCardForm() {
           } else if (selectedCountry === 'IN') {
             for (const opt of options) {
               if (opt.textContent.toLowerCase().includes('maharashtra') || opt.value === 'MH') {
+                select.value = opt.value;
+                select.dispatchEvent(new Event('change', { bubbles: true }));
+                stateFound = true;
+                break;
+              }
+            }
+          } else if (selectedCountry === 'DE') {
+            for (const opt of options) {
+              if (opt.textContent.toLowerCase().includes('berlin') || opt.value.toLowerCase().includes('berlin')) {
                 select.value = opt.value;
                 select.dispatchEvent(new Event('change', { bubbles: true }));
                 stateFound = true;

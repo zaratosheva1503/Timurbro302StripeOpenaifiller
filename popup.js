@@ -561,6 +561,15 @@ function showLiveCCResults(liveCards) {
           state: 'London',
           country: 'GB'
         };
+      } else if (selectedCountry === 'DE') {
+        addressData = {
+          name: 'Max Müller',
+          address: 'Berliner Str. 42',
+          city: 'Berlin',
+          zip: '10115',
+          state: 'Berlin',
+          country: 'DE'
+        };
       }
 
       // Save to storage and trigger autofill
