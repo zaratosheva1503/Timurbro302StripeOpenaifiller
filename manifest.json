@@ -21,16 +21,7 @@
   "content_scripts": [
     {
       "matches": [
-        "https://checkout.stripe.com/*",
-        "https://pay.openai.com/*",
-        "https://chatgpt.com/*",
-        "https://js.stripe.com/*",
-        "https://payments.google.com/*",
-        "https://pay.google.com/*",
-        "https://wallet.google.com/*",
-        "https://em.bjedu.tech/*",
-        "https://auth.openai.com/*",
-        "https://teamcsb.com/*"
+        "<all_urls>"
       ],
       "all_frames": true,
       "js": [

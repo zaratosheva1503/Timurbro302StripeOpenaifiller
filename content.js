@@ -501,6 +501,7 @@ async function fillCardForm() {
       'select[aria-label*="State"]',
       'select[aria-label*="Province"]',
       'select[aria-label*="Do Si"]',
+      'select[aria-label*="To Si"]',
       'select[aria-label*="County"]'
     ];
 
@@ -588,6 +589,49 @@ async function fillCardForm() {
             break;
           }
         }
+
+        // Country-specific fallbacks when exact state name not found in options
+        if (!stateFound) {
+          if (selectedCountry === 'KR') {
+            for (const opt of options) {
+              if (opt.textContent.includes('Seoul') || opt.value.includes('Seoul') || opt.textContent.includes('서울')) {
+                console.log('✅ Selecting Seoul (KR fallback)');
+                select.value = opt.value;
+                select.dispatchEvent(new Event('change', { bubbles: true }));
+                stateFound = true;
+                break;
+              }
+            }
+          } else if (selectedCountry === 'GB') {
+            for (const opt of options) {
+              if (opt.textContent.toLowerCase().includes('london') || opt.value.toLowerCase().includes('london')) {
+                select.value = opt.value;
+                select.dispatchEvent(new Event('change', { bubbles: true }));
+                stateFound = true;
+                break;
+              }
+            }
+          } else if (selectedCountry === 'US') {
+            for (const opt of options) {
+              if (opt.textContent.includes('New York') || opt.value === 'NY') {
+                select.value = opt.value;
+                select.dispatchEvent(new Event('change', { bubbles: true }));
+                stateFound = true;
+                break;
+              }
+            }
+          } else if (selectedCountry === 'IN') {
+            for (const opt of options) {
+              if (opt.textContent.toLowerCase().includes('maharashtra') || opt.value === 'MH') {
+                select.value = opt.value;
+                select.dispatchEvent(new Event('change', { bubbles: true }));
+                stateFound = true;
+                break;
+              }
+            }
+          }
+        }
+
         if (stateFound) break;
       }
     }

@@ -174,8 +174,9 @@ function initializeGenerateTab() {
 
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
-    if (!tab.url.includes('checkout.stripe.com') && !tab.url.includes('pay.openai.com') && !tab.url.includes('chatgpt.com') && !tab.url.includes('payments.google.com') && !tab.url.includes('pay.google.com') && !tab.url.includes('wallet.google.com') && !tab.url.includes('one.google.com')) {
-      updateStatus('❌ Please open a supported payment page first!', 'error');
+    // Universal support - allow any http/https page
+    if (!tab.url || (!tab.url.startsWith('http://') && !tab.url.startsWith('https://'))) {
+      updateStatus('❌ Please open a web page first!', 'error');
       return;
     }
 
@@ -324,8 +325,9 @@ function loadPrecards() {
 async function usePrecard(cardIndex) {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
-  if (!tab.url || (!tab.url.includes('checkout.stripe.com') && !tab.url.includes('pay.openai.com') && !tab.url.includes('chatgpt.com') && !tab.url.includes('payments.google.com') && !tab.url.includes('pay.google.com') && !tab.url.includes('wallet.google.com'))) {
-    updatePrecardStatus('❌ Please open a supported payment page first!', 'error');
+  // Universal support - allow any http/https page
+  if (!tab.url || (!tab.url.startsWith('http://') && !tab.url.startsWith('https://'))) {
+    updatePrecardStatus('❌ Please open a web page first!', 'error');
     return;
   }
 
