@@ -575,6 +575,28 @@ async function fillCardForm() {
                 break;
               }
             }
+          } else if (selectedCountry === 'FR') {
+            for (const opt of options) {
+              if (opt.textContent.toLowerCase().includes('paris') || opt.value.toLowerCase().includes('paris') ||
+                opt.textContent.toLowerCase().includes('île-de-france') || opt.textContent.toLowerCase().includes('ile-de-france')) {
+                console.log('✅ Found and selecting Paris/Île-de-France (fallback)');
+                stateSelect.value = opt.value;
+                stateSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                stateFound = true;
+                break;
+              }
+            }
+          } else if (selectedCountry === 'IT') {
+            for (const opt of options) {
+              if (opt.textContent.toLowerCase().includes('roma') || opt.value.toLowerCase().includes('roma') ||
+                opt.value === 'RM' || opt.textContent.toLowerCase() === 'rome') {
+                console.log('✅ Found and selecting Roma (fallback)');
+                stateSelect.value = opt.value;
+                stateSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                stateFound = true;
+                break;
+              }
+            }
           }
         }
 
@@ -648,6 +670,26 @@ async function fillCardForm() {
           } else if (selectedCountry === 'DE') {
             for (const opt of options) {
               if (opt.textContent.toLowerCase().includes('berlin') || opt.value.toLowerCase().includes('berlin')) {
+                select.value = opt.value;
+                select.dispatchEvent(new Event('change', { bubbles: true }));
+                stateFound = true;
+                break;
+              }
+            }
+          } else if (selectedCountry === 'FR') {
+            for (const opt of options) {
+              if (opt.textContent.toLowerCase().includes('paris') || opt.value.toLowerCase().includes('paris') ||
+                opt.textContent.toLowerCase().includes('île-de-france') || opt.textContent.toLowerCase().includes('ile-de-france')) {
+                select.value = opt.value;
+                select.dispatchEvent(new Event('change', { bubbles: true }));
+                stateFound = true;
+                break;
+              }
+            }
+          } else if (selectedCountry === 'IT') {
+            for (const opt of options) {
+              if (opt.textContent.toLowerCase().includes('roma') || opt.value.toLowerCase().includes('roma') ||
+                opt.value === 'RM' || opt.textContent.toLowerCase() === 'rome') {
                 select.value = opt.value;
                 select.dispatchEvent(new Event('change', { bubbles: true }));
                 stateFound = true;
@@ -1551,6 +1593,26 @@ async function fillCardFormWithPrecard(card, randomData) {
           for (const opt of options) {
             if (opt.textContent.includes('New York') || opt.value === 'NY') {
               console.log('✅ Precard: Found and selecting New York (fallback)');
+              select.value = opt.value;
+              select.dispatchEvent(new Event('change', { bubbles: true }));
+              break;
+            }
+          }
+        } else if (selectedCountry === 'FR') {
+          for (const opt of options) {
+            if (opt.textContent.toLowerCase().includes('paris') || opt.value.toLowerCase().includes('paris') ||
+              opt.textContent.toLowerCase().includes('île-de-france') || opt.textContent.toLowerCase().includes('ile-de-france')) {
+              console.log('✅ Precard: Found and selecting Paris/Île-de-France (fallback)');
+              select.value = opt.value;
+              select.dispatchEvent(new Event('change', { bubbles: true }));
+              break;
+            }
+          }
+        } else if (selectedCountry === 'IT') {
+          for (const opt of options) {
+            if (opt.textContent.toLowerCase().includes('roma') || opt.value.toLowerCase().includes('roma') ||
+              opt.value === 'RM' || opt.textContent.toLowerCase() === 'rome') {
+              console.log('✅ Precard: Found and selecting Roma (fallback)');
               select.value = opt.value;
               select.dispatchEvent(new Event('change', { bubbles: true }));
               break;

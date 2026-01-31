@@ -579,6 +579,15 @@ function showLiveCCResults(liveCards) {
           state: 'Île-de-France',
           country: 'FR'
         };
+      } else if (selectedCountry === 'IT') {
+        addressData = {
+          name: 'Marco Rossi',
+          address: 'Via Roma 42',
+          city: 'Roma',
+          zip: '00100',
+          state: 'Roma',
+          country: 'IT'
+        };
       }
 
       // Save to storage and trigger autofill

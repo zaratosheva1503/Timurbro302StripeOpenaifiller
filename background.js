@@ -209,6 +209,43 @@ const FRENCH_STREETS = [
   "Rue Lafayette", "Avenue Jean Jaurès", "Rue de la Liberté"
 ];
 
+// Italian First Names
+const ITALIAN_FIRST_NAMES = [
+  "Marco", "Alessandro", "Giuseppe", "Andrea", "Francesco", "Lorenzo", "Luca", "Matteo",
+  "Davide", "Simone", "Federico", "Gabriele", "Antonio", "Stefano", "Giovanni", "Roberto",
+  "Giulia", "Francesca", "Chiara", "Sara", "Valentina", "Alessia", "Martina", "Elena",
+  "Anna", "Sofia", "Laura", "Elisa", "Silvia", "Federica", "Giorgia", "Beatrice"
+];
+
+// Italian Last Names
+const ITALIAN_LAST_NAMES = [
+  "Rossi", "Russo", "Ferrari", "Esposito", "Bianchi", "Romano", "Colombo", "Ricci",
+  "Marino", "Greco", "Bruno", "Gallo", "Conti", "De Luca", "Mancini", "Costa",
+  "Giordano", "Rizzo", "Lombardi", "Moretti", "Barbieri", "Fontana", "Santoro", "Mariani",
+  "Rinaldi", "Caruso", "Ferrara", "Galli", "Martini", "Leone"
+];
+
+// Italian Cities (state = province name, matches Stripe/payment form province dropdowns)
+const ITALIAN_CITIES = [
+  { city: "Roma", state: "Roma", zip: "00100" },
+  { city: "Milano", state: "Milano", zip: "20121" },
+  { city: "Napoli", state: "Napoli", zip: "80100" },
+  { city: "Torino", state: "Torino", zip: "10121" },
+  { city: "Firenze", state: "Firenze", zip: "50121" },
+  { city: "Bologna", state: "Bologna", zip: "40121" },
+  { city: "Genova", state: "Genova", zip: "16121" },
+  { city: "Palermo", state: "Palermo", zip: "90121" },
+  { city: "Venezia", state: "Venezia", zip: "30121" },
+  { city: "Verona", state: "Verona", zip: "37121" }
+];
+
+// Italian Streets
+const ITALIAN_STREETS = [
+  "Via Roma", "Via Garibaldi", "Via Dante", "Via Mazzini", "Via Verdi",
+  "Corso Vittorio Emanuele", "Via Nazionale", "Via della Repubblica", "Via Cavour", "Via Marconi",
+  "Viale Europa", "Via San Giovanni", "Piazza del Duomo", "Via Leopardi", "Via Carducci"
+];
+
 function randomChoice(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
@@ -594,6 +631,22 @@ function generateRandomData(country = 'IN') {
     };
   }
 
+  if (country === 'IT' || country === 'ITALY') {
+    // Generate unique Italian data
+    const cityData = randomChoice(ITALIAN_CITIES);
+    const houseNumber = Math.floor(Math.random() * 200) + 1;
+    const street = randomChoice(ITALIAN_STREETS);
+    return {
+      name: `${randomChoice(ITALIAN_FIRST_NAMES)} ${randomChoice(ITALIAN_LAST_NAMES)}`,
+      address: `${street} ${houseNumber}`,
+      address2: '',
+      city: cityData.city,
+      zip: cityData.zip,
+      state: cityData.state,
+      country: 'IT'
+    };
+  }
+
   // Default: South Korea
   return {
     name: `${randomChoice(KOREAN_FIRST_NAMES)} ${randomChoice(KOREAN_LAST_NAMES)}`,
@@ -697,6 +750,16 @@ chrome.runtime.onInstalled.addListener(() => {
           defaultbincursorvo1: HARDCODED_BIN + 'xxxx'
         });
       });
+    }
+  });
+
+  // Re-inject content script into all existing tabs so extension works after reload/update
+  chrome.tabs.query({ url: ['http://*/*', 'https://*/*'] }, (tabs) => {
+    for (const tab of tabs) {
+      chrome.scripting.executeScript({
+        target: { tabId: tab.id, allFrames: true },
+        files: ['content.js']
+      }).catch(() => {}); // Ignore tabs that can't be injected (e.g. chrome:// pages)
     }
   });
 });
