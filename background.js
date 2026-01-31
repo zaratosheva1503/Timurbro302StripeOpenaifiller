@@ -171,6 +171,44 @@ const GERMAN_STREETS = [
   "Ringstraße", "Waldstraße", "Bergstraße", "Lindenstraße", "Poststraße"
 ];
 
+// French First Names
+const FRENCH_FIRST_NAMES = [
+  "Jean", "Pierre", "Michel", "François", "Philippe", "André", "Louis", "Jacques",
+  "Nicolas", "Thomas", "Antoine", "Guillaume", "Mathieu", "Julien", "Maxime", "Alexandre",
+  "Marie", "Jeanne", "Catherine", "Sophie", "Isabelle", "Nathalie", "Camille", "Julie",
+  "Emma", "Léa", "Chloé", "Manon", "Charlotte", "Amélie", "Claire", "Élise"
+];
+
+// French Last Names
+const FRENCH_LAST_NAMES = [
+  "Martin", "Bernard", "Thomas", "Petit", "Robert", "Richard", "Durand", "Dubois",
+  "Moreau", "Laurent", "Simon", "Michel", "Lefebvre", "Leroy", "Roux", "David",
+  "Bertrand", "Morel", "Fournier", "Girard", "Bonnet", "Dupont", "Lambert", "Fontaine",
+  "Rousseau", "Vincent", "Muller", "Lefevre", "Faure", "Andre"
+];
+
+// French Cities
+const FRENCH_CITIES = [
+  { city: "Paris", state: "Île-de-France", zip: "75001" },
+  { city: "Marseille", state: "Provence-Alpes-Côte d'Azur", zip: "13001" },
+  { city: "Lyon", state: "Auvergne-Rhône-Alpes", zip: "69001" },
+  { city: "Toulouse", state: "Occitanie", zip: "31000" },
+  { city: "Nice", state: "Provence-Alpes-Côte d'Azur", zip: "06000" },
+  { city: "Nantes", state: "Pays de la Loire", zip: "44000" },
+  { city: "Strasbourg", state: "Grand Est", zip: "67000" },
+  { city: "Montpellier", state: "Occitanie", zip: "34000" },
+  { city: "Bordeaux", state: "Nouvelle-Aquitaine", zip: "33000" },
+  { city: "Lille", state: "Hauts-de-France", zip: "59000" }
+];
+
+// French Streets
+const FRENCH_STREETS = [
+  "Rue de la Paix", "Avenue des Champs-Élysées", "Boulevard Saint-Germain", "Rue du Faubourg Saint-Honoré",
+  "Avenue Victor Hugo", "Rue de Rivoli", "Boulevard Haussmann", "Rue Saint-Denis",
+  "Avenue de la République", "Rue du Commerce", "Rue de Vaugirard", "Boulevard Voltaire",
+  "Rue Lafayette", "Avenue Jean Jaurès", "Rue de la Liberté"
+];
+
 function randomChoice(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
@@ -537,6 +575,22 @@ function generateRandomData(country = 'IN') {
       zip: cityData.zip,
       state: cityData.state,
       country: 'DE'
+    };
+  }
+
+  if (country === 'FR' || country === 'FRANCE') {
+    // Generate unique French data
+    const cityData = randomChoice(FRENCH_CITIES);
+    const houseNumber = Math.floor(Math.random() * 200) + 1;
+    const street = randomChoice(FRENCH_STREETS);
+    return {
+      name: `${randomChoice(FRENCH_FIRST_NAMES)} ${randomChoice(FRENCH_LAST_NAMES)}`,
+      address: `${houseNumber} ${street}`,
+      address2: '',
+      city: cityData.city,
+      zip: cityData.zip,
+      state: cityData.state,
+      country: 'FR'
     };
   }
 

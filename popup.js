@@ -570,6 +570,15 @@ function showLiveCCResults(liveCards) {
           state: 'Berlin',
           country: 'DE'
         };
+      } else if (selectedCountry === 'FR') {
+        addressData = {
+          name: 'Jean Martin',
+          address: '15 Rue de la Paix',
+          city: 'Paris',
+          zip: '75001',
+          state: 'Île-de-France',
+          country: 'FR'
+        };
       }
 
       // Save to storage and trigger autofill
