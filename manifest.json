@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Zarif Card Automation",
+  "name": "Timurbro302 Card Automation",
   "version": "6.6.3",
   "description": "Automatically fill payment checkout with generated cards",
   "permissions": [
@@ -37,7 +37,7 @@
     "128": "images/zarif card auto logo.png"
   },
   "action": {
-    "default_title": "Zarif Card Automation",
+    "default_title": "Timurbro302 Card Automation",
     "default_icon": {
       "16": "images/zarif card auto logo.png",
       "32": "images/zarif card auto logo.png",

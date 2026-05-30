@@ -195,7 +195,7 @@ function initializeGenerateTab() {
       savedBinValue.textContent = bin;
     });
 
-    console.log('[Zarif Popup v6.2.0] Sending generateCards with country:', countrySelect.value);
+    console.log('[Timurbro302 Popup v6.2.0] Sending generateCards with country:', countrySelect.value);
     chrome.runtime.sendMessage({
       action: 'generateCards',
       bin: bin,

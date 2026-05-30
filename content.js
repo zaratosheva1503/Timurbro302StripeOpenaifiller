@@ -29,17 +29,17 @@ function sleep(ms) {
 
 // Try to fill Stripe Elements iframes
 async function tryFillStripeIframes(card) {
-  console.log('[Zarif] Attempting to fill Stripe iframes...');
+  console.log('[Timurbro302] Attempting to fill Stripe iframes...');
 
   // Find all Stripe iframes
   const iframes = document.querySelectorAll('iframe[src*="stripe"], iframe[name*="__privateStripeFrame"], iframe[title*="Secure"]');
 
   if (iframes.length === 0) {
-    console.log('[Zarif] No Stripe iframes found');
+    console.log('[Timurbro302] No Stripe iframes found');
     return false;
   }
 
-  console.log(`[Zarif] Found ${iframes.length} potential Stripe iframes`);
+  console.log(`[Timurbro302] Found ${iframes.length} potential Stripe iframes`);
 
   // Send message to each iframe via chrome.runtime to fill the inputs
   for (const iframe of iframes) {
@@ -66,7 +66,7 @@ async function tryFillStripeIframes(card) {
         return true;
       }
     } catch (e) {
-      console.log('[Zarif] Cannot access iframe directly (cross-origin):', e.message);
+      console.log('[Timurbro302] Cannot access iframe directly (cross-origin):', e.message);
     }
   }
 
@@ -86,7 +86,7 @@ async function fillInputInIframe(input, value) {
   }
   input.dispatchEvent(new Event('change', { bubbles: true }));
   input.dispatchEvent(new Event('blur', { bubbles: true }));
-  console.log(`[Zarif] Filled iframe input with value length: ${value.length}`);
+  console.log(`[Timurbro302] Filled iframe input with value length: ${value.length}`);
 }
 
 async function fillCardForm() {
@@ -429,7 +429,7 @@ async function fillCardForm() {
       const options = countrySelect.querySelectorAll('option');
 
       // Debug: log all available options
-      console.log('[Zarif] Available country options:');
+      console.log('[Timurbro302] Available country options:');
       options.forEach((opt, i) => {
         console.log(`  ${i}: value="${opt.value}" text="${opt.textContent.trim()}"`);
       });
@@ -475,7 +475,7 @@ async function fillCardForm() {
 
       // Fallback if exact match not found
       if (!countryFound) {
-        console.log('[Zarif] Country not found by primary match, trying fallback...');
+        console.log('[Timurbro302] Country not found by primary match, trying fallback...');
         for (const opt of options) {
           if (opt.value === selectedCountry || opt.value.toUpperCase() === selectedCountry) {
             countrySelect.value = opt.value;
@@ -488,7 +488,7 @@ async function fillCardForm() {
       }
 
       if (!countryFound) {
-        console.log('[Zarif] ❌ Could not find country:', selectedCountry);
+        console.log('[Timurbro302] ❌ Could not find country:', selectedCountry);
       }
       await sleep(500);
     }
@@ -754,14 +754,14 @@ async function fillCardForm() {
       const expiryInput = document.querySelector('input[placeholder*="MM/YY"]') || document.querySelector('input[aria-label*="MM/YY"]') || document.querySelector('input[placeholder*="CVC"]');
 
       if (initialCardNumInput && !expiryInput) {
-        console.log('[Zarif] Google Pay: Collapsed form detected (Stage 1)');
-        console.log('[Zarif] Google Pay: Filling Card Number first to trigger expansion...');
+        console.log('[Timurbro302] Google Pay: Collapsed form detected (Stage 1)');
+        console.log('[Timurbro302] Google Pay: Filling Card Number first to trigger expansion...');
 
         await simulateTyping(initialCardNumInput, card.card_number);
         initialCardNumInput.dispatchEvent(new Event('change', { bubbles: true }));
         initialCardNumInput.dispatchEvent(new Event('blur', { bubbles: true }));
 
-        console.log('[Zarif] Google Pay: Waiting for form expansion...');
+        console.log('[Timurbro302] Google Pay: Waiting for form expansion...');
         await sleep(2000); // Wait for animation/render
 
         // Wait up to 5 more seconds for expiry input to appear
@@ -770,14 +770,14 @@ async function fillCardForm() {
           await sleep(500);
           attempts++;
         }
-        console.log('[Zarif] Google Pay: Form expansion wait complete');
+        console.log('[Timurbro302] Google Pay: Form expansion wait complete');
       }
 
       // ===== GOOGLE WALLET SPECIFIC: Expand billing address and change country/state =====
       const isGoogleWallet = window.location.hostname.includes('wallet.google.com');
 
       if (isGoogleWallet) {
-        console.log('[Zarif] Google Wallet: Starting comprehensive address handling...');
+        console.log('[Timurbro302] Google Wallet: Starting comprehensive address handling...');
 
         // CRITICAL: Wait for form to fully load by polling for COUNTRY input
         let countryInput = null;
@@ -787,16 +787,16 @@ async function fillCardForm() {
         while (!countryInput && waitAttempts < maxWaitAttempts) {
           countryInput = document.querySelector('input[name="COUNTRY"]');
           if (!countryInput) {
-            console.log('[Zarif] Google Wallet: Waiting for form to load... attempt', waitAttempts + 1);
+            console.log('[Timurbro302] Google Wallet: Waiting for form to load... attempt', waitAttempts + 1);
             await sleep(500);
             waitAttempts++;
           }
         }
 
-        console.log('[Zarif] Google Wallet: Form loaded after', waitAttempts, 'attempts. COUNTRY input found:', !!countryInput, 'value:', countryInput?.value);
+        console.log('[Timurbro302] Google Wallet: Form loaded after', waitAttempts, 'attempts. COUNTRY input found:', !!countryInput, 'value:', countryInput?.value);
 
         // ===== STEP 1: CHANGE COUNTRY DROPDOWN =====
-        console.log('[Zarif] Google Wallet: Step 1 - Finding country dropdown...');
+        console.log('[Timurbro302] Google Wallet: Step 1 - Finding country dropdown...');
         let countryChanged = false;
 
         if (countryInput) {
@@ -805,13 +805,13 @@ async function fillCardForm() {
           let level = 0;
 
           while (container && level < 10) {
-            console.log('[Zarif] Google Wallet: Level', level, 'tag:', container.tagName, 'children:', container.children.length);
+            console.log('[Timurbro302] Google Wallet: Level', level, 'tag:', container.tagName, 'children:', container.children.length);
 
             // Look for any clickable elements in this container
             const clickables = container.querySelectorAll('[role], button, [tabindex], [class*="select"], [class*="dropdown"]');
 
             if (clickables.length > 0) {
-              console.log('[Zarif] Google Wallet: Found', clickables.length, 'clickable elements at level', level);
+              console.log('[Timurbro302] Google Wallet: Found', clickables.length, 'clickable elements at level', level);
 
               // Click each one that might be a country dropdown
               for (const clickable of clickables) {
@@ -820,7 +820,7 @@ async function fillCardForm() {
                 // Skip if it's clearly not country-related
                 if (text.includes('state') || text.includes('city') || text.includes('address')) continue;
 
-                console.log('[Zarif] Google Wallet: Clicking potential dropdown:', clickable.tagName);
+                console.log('[Timurbro302] Google Wallet: Clicking potential dropdown:', clickable.tagName);
                 clickable.click();
                 await sleep(400);
               }
@@ -829,7 +829,7 @@ async function fillCardForm() {
             // Also look for flag images or emoji
             const images = container.querySelectorAll('img, svg, [class*="flag"]');
             for (const img of images) {
-              console.log('[Zarif] Google Wallet: Found image/flag, clicking parent...');
+              console.log('[Timurbro302] Google Wallet: Found image/flag, clicking parent...');
               img.parentElement?.click();
               await sleep(300);
             }
@@ -840,7 +840,7 @@ async function fillCardForm() {
 
           // After clicking, look for India option anywhere on page
           await sleep(500);
-          console.log('[Zarif] Google Wallet: Looking for India option...');
+          console.log('[Timurbro302] Google Wallet: Looking for India option...');
 
           const allElements = document.querySelectorAll('*');
           for (const el of allElements) {
@@ -848,7 +848,7 @@ async function fillCardForm() {
             // Look for exactly "India" or "India (IN)" - the option item
             if ((text === 'India' || text === 'India (IN)' || text === '🇮🇳 India (IN)') &&
               el.children.length === 0) {  // Leaf node = actual option
-              console.log('[Zarif] Google Wallet: Found India option, clicking:', text);
+              console.log('[Timurbro302] Google Wallet: Found India option, clicking:', text);
               el.click();
               el.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
               countryChanged = true;
@@ -864,7 +864,7 @@ async function fillCardForm() {
               if (text.includes('india') && text.length < 20 && !text.includes('\n')) {
                 const rect = el.getBoundingClientRect();
                 if (rect.height > 10 && rect.height < 60) {  // Reasonable option size
-                  console.log('[Zarif] Google Wallet: Found India (partial match), clicking');
+                  console.log('[Timurbro302] Google Wallet: Found India (partial match), clicking');
                   el.click();
                   countryChanged = true;
                   await sleep(600);
@@ -876,14 +876,14 @@ async function fillCardForm() {
         }
 
         if (!countryChanged) {
-          console.log('[Zarif] Google Wallet: Could not find/click country dropdown, trying direct input method...');
+          console.log('[Timurbro302] Google Wallet: Could not find/click country dropdown, trying direct input method...');
           // Fallback: directly set the hidden COUNTRY input
           const countryInput = document.querySelector('input[name="COUNTRY"]');
           if (countryInput) {
             countryInput.value = 'IN';
             countryInput.dispatchEvent(new Event('input', { bubbles: true }));
             countryInput.dispatchEvent(new Event('change', { bubbles: true }));
-            console.log('[Zarif] Google Wallet: Set COUNTRY input directly to IN');
+            console.log('[Timurbro302] Google Wallet: Set COUNTRY input directly to IN');
           }
         }
 
@@ -891,7 +891,7 @@ async function fillCardForm() {
         await sleep(1000);
 
         // ===== STEP 2: FILL ADDRESS FIELDS VIA HIDDEN INPUTS =====
-        console.log('[Zarif] Google Wallet: Step 2 - Filling address inputs...');
+        console.log('[Timurbro302] Google Wallet: Step 2 - Filling address inputs...');
 
         const addressInputs = {
           'ADDRESS_LINE_1': randomData.address,
@@ -907,12 +907,12 @@ async function fillCardForm() {
             input.value = value;
             input.dispatchEvent(new Event('input', { bubbles: true }));
             input.dispatchEvent(new Event('change', { bubbles: true }));
-            console.log(`[Zarif] Google Wallet: Set ${name} to ${value}`);
+            console.log(`[Timurbro302] Google Wallet: Set ${name} to ${value}`);
           }
         }
 
         // ===== STEP 3: CHANGE STATE DROPDOWN =====
-        console.log('[Zarif] Google Wallet: Step 3 - Finding state dropdown...');
+        console.log('[Timurbro302] Google Wallet: Step 3 - Finding state dropdown...');
         await sleep(500);
 
         // Search for elements containing Malaysian state names or "Kuala Lumpur"
@@ -930,7 +930,7 @@ async function fillCardForm() {
 
           // Check if element shows a Malaysian state
           if (malaysianStates.some(state => elText === state || (elText.includes(state) && elText.length < 30))) {
-            console.log('[Zarif] Google Wallet: Found Malaysian state element:', el.tagName, elText.slice(0, 20));
+            console.log('[Timurbro302] Google Wallet: Found Malaysian state element:', el.tagName, elText.slice(0, 20));
 
             // Click to open dropdown
             el.click();
@@ -951,7 +951,7 @@ async function fillCardForm() {
               if (optText === targetState || (optText.includes(targetState) && optText.length < 30)) {
                 const rect = optEl.getBoundingClientRect();
                 if (rect.height > 0 && rect.height < 100) {
-                  console.log('[Zarif] Google Wallet: Found target state option:', optEl.textContent?.trim());
+                  console.log('[Timurbro302] Google Wallet: Found target state option:', optEl.textContent?.trim());
                   optEl.click();
                   stateChanged = true;
                   await sleep(500);
@@ -965,11 +965,11 @@ async function fillCardForm() {
         }
 
         if (!stateChanged) {
-          console.log('[Zarif] Google Wallet: Could not change state dropdown');
+          console.log('[Timurbro302] Google Wallet: Could not change state dropdown');
         }
 
-        console.log('[Zarif] Google Wallet: Comprehensive handling completed');
-        console.log('[Zarif] Google Wallet: Country changed:', countryChanged, 'State changed:', stateChanged);
+        console.log('[Timurbro302] Google Wallet: Comprehensive handling completed');
+        console.log('[Timurbro302] Google Wallet: Country changed:', countryChanged, 'State changed:', stateChanged);
       }
       // ===== END GOOGLE WALLET SPECIFIC =====
 
@@ -978,14 +978,14 @@ async function fillCardForm() {
 
       // Log all visible inputs for debugging
       const debugInputs = document.querySelectorAll('input:not([type="hidden"])');
-      console.log('[Zarif] Google Pay: Total visible inputs found:', debugInputs.length);
+      console.log('[Timurbro302] Google Pay: Total visible inputs found:', debugInputs.length);
       debugInputs.forEach((input, idx) => {
         const placeholder = input.getAttribute('placeholder') || '';
         const name = input.getAttribute('name') || '';
         const id = input.getAttribute('id') || '';
         const value = input.value || '';
         const parent = input.closest('div')?.textContent?.slice(0, 50) || '';
-        console.log(`[Zarif] Input ${idx}: placeholder="${placeholder}" name="${name}" id="${id}" value="${value}" parent="${parent}"`);
+        console.log(`[Timurbro302] Input ${idx}: placeholder="${placeholder}" name="${name}" id="${id}" value="${value}" parent="${parent}"`);
       });
 
       // Helper to fill Google Pay input using multiple detection methods
@@ -1041,7 +1041,7 @@ async function fillCardForm() {
           }
         }
 
-        console.log(`[Zarif] Google Pay: ${fieldName} field NOT found`);
+        console.log(`[Timurbro302] Google Pay: ${fieldName} field NOT found`);
         return false;
       };
 
@@ -1064,9 +1064,9 @@ async function fillCardForm() {
       await sleep(300);
 
       // ===== COUNTRY DROPDOWN HANDLING - MUST HAPPEN BEFORE STATE =====
-      console.log('[Zarif] Google Pay: ===== COUNTRY DROPDOWN HANDLING =====');
+      console.log('[Timurbro302] Google Pay: ===== COUNTRY DROPDOWN HANDLING =====');
       const targetCountry = selectedCountry || 'IN';
-      console.log('[Zarif] Google Pay: Target country:', targetCountry);
+      console.log('[Timurbro302] Google Pay: Target country:', targetCountry);
 
       // Look for current country displayed (Malaysia, MY, etc.)
       const allElements = document.querySelectorAll('div, span, button, li');
@@ -1077,7 +1077,7 @@ async function fillCardForm() {
         // Find element showing current country (Malaysia)
         if (text === 'Malaysia (MY)' || text === 'Malaysia' ||
           (text.includes('Malaysia') && text.length < 25 && !text.includes('\n'))) {
-          console.log('[Zarif] Google Pay: Found Malaysia element:', el.tagName, text);
+          console.log('[Timurbro302] Google Pay: Found Malaysia element:', el.tagName, text);
 
           // Click to open country dropdown
           el.click();
@@ -1095,7 +1095,7 @@ async function fillCardForm() {
             const optText = (opt.innerText || '').trim();
             if (optText === 'India (IN)' || optText === 'India' ||
               (optText.includes('India') && optText.length < 20 && !optText.includes('\n'))) {
-              console.log('[Zarif] Google Pay: Found India option, clicking:', optText);
+              console.log('[Timurbro302] Google Pay: Found India option, clicking:', optText);
               opt.click();
               countryChanged = true;
               await sleep(800); // Wait for form to update with new country
@@ -1110,14 +1110,14 @@ async function fillCardForm() {
       if (!countryChanged) {
         const countryInput = document.querySelector('input[name="COUNTRY"]');
         if (countryInput && countryInput.value !== targetCountry) {
-          console.log('[Zarif] Google Pay: Setting COUNTRY input directly from', countryInput.value, 'to', targetCountry);
+          console.log('[Timurbro302] Google Pay: Setting COUNTRY input directly from', countryInput.value, 'to', targetCountry);
           countryInput.value = targetCountry;
           countryInput.dispatchEvent(new Event('input', { bubbles: true }));
           countryInput.dispatchEvent(new Event('change', { bubbles: true }));
         }
       }
 
-      console.log('[Zarif] Google Pay: Country changed:', countryChanged);
+      console.log('[Timurbro302] Google Pay: Country changed:', countryChanged);
       await sleep(500);
       // ===== END COUNTRY DROPDOWN HANDLING =====
 
@@ -1125,18 +1125,18 @@ async function fillCardForm() {
       await sleep(500);
 
       const targetState = randomData.state || 'Maharashtra';
-      console.log('[Zarif] Google Pay: ===== STATE DROPDOWN HANDLING =====');
-      console.log('[Zarif] Google Pay: Target state:', targetState);
+      console.log('[Timurbro302] Google Pay: ===== STATE DROPDOWN HANDLING =====');
+      console.log('[Timurbro302] Google Pay: Target state:', targetState);
 
       // First try native selects (likely won't find any)
       const allSelects = document.querySelectorAll('select');
-      console.log('[Zarif] Google Pay: Found', allSelects.length, 'native select dropdowns');
+      console.log('[Timurbro302] Google Pay: Found', allSelects.length, 'native select dropdowns');
 
       let stateSelected = false;
 
       // If no native selects, look for custom dropdown
       if (allSelects.length === 0) {
-        console.log('[Zarif] Google Pay: No native selects, looking for custom dropdown...');
+        console.log('[Timurbro302] Google Pay: No native selects, looking for custom dropdown...');
 
         // Find the State dropdown by looking for elements with "State" text
         const allElements = document.querySelectorAll('div, span, label');
@@ -1154,8 +1154,8 @@ async function fillCardForm() {
               el.parentElement?.closest('[role="listbox"], [role="button"], [role="combobox"], [tabindex], [aria-haspopup]');
 
             if (clickableParent) {
-              console.log('[Zarif] Google Pay: Found custom state dropdown, clicking to open...');
-              console.log('[Zarif] Current value:', el.textContent.trim());
+              console.log('[Timurbro302] Google Pay: Found custom state dropdown, clicking to open...');
+              console.log('[Timurbro302] Current value:', el.textContent.trim());
 
               // Click to open the dropdown
               clickableParent.click();
@@ -1163,12 +1163,12 @@ async function fillCardForm() {
 
               // Now look for the option list that appeared
               const optionElements = document.querySelectorAll('[role="option"], [role="menuitem"], [data-value], li');
-              console.log('[Zarif] Google Pay: Found', optionElements.length, 'potential options');
+              console.log('[Timurbro302] Google Pay: Found', optionElements.length, 'potential options');
 
               for (const option of optionElements) {
                 const optionText = option.textContent.trim();
                 if (optionText.toLowerCase() === targetState.toLowerCase()) {
-                  console.log('[Zarif] Google Pay: Found target state option, clicking:', optionText);
+                  console.log('[Timurbro302] Google Pay: Found target state option, clicking:', optionText);
                   option.click();
                   stateSelected = true;
                   await sleep(300);
@@ -1183,11 +1183,11 @@ async function fillCardForm() {
 
         // Alternative: Look for aria-label or data attributes
         if (!stateSelected) {
-          console.log('[Zarif] Google Pay: Trying alternative method to find state dropdown...');
+          console.log('[Timurbro302] Google Pay: Trying alternative method to find state dropdown...');
 
           // Look for any dropdown that might contain state names
           const dropdownTriggers = document.querySelectorAll('[aria-expanded], [aria-haspopup="listbox"], [role="combobox"]');
-          console.log('[Zarif] Google Pay: Found', dropdownTriggers.length, 'dropdown triggers');
+          console.log('[Timurbro302] Google Pay: Found', dropdownTriggers.length, 'dropdown triggers');
 
           for (const trigger of dropdownTriggers) {
             const displayedText = trigger.textContent.trim();
@@ -1197,7 +1197,7 @@ async function fillCardForm() {
               'andhra pradesh', 'telangana', 'madhya pradesh', 'punjab', 'haryana'];
 
             if (indianStates.some(state => displayedText.toLowerCase().includes(state))) {
-              console.log('[Zarif] Google Pay: Found state dropdown showing:', displayedText);
+              console.log('[Timurbro302] Google Pay: Found state dropdown showing:', displayedText);
 
               // Click to open
               trigger.click();
@@ -1207,7 +1207,7 @@ async function fillCardForm() {
               const allOptions = document.querySelectorAll('[role="option"], [data-value], .option, li');
               for (const opt of allOptions) {
                 if (opt.textContent.trim().toLowerCase() === targetState.toLowerCase()) {
-                  console.log('[Zarif] Google Pay: Clicking state option:', opt.textContent.trim());
+                  console.log('[Timurbro302] Google Pay: Clicking state option:', opt.textContent.trim());
                   opt.click();
                   stateSelected = true;
                   await sleep(300);
@@ -1251,7 +1251,7 @@ async function fillCardForm() {
       if (stateSelected) {
         console.log('✅ Google Pay: State selection SUCCESSFUL');
       } else {
-        console.log('[Zarif] Google Pay: UI State selection failed. Attempting direct input fallback...');
+        console.log('[Timurbro302] Google Pay: UI State selection failed. Attempting direct input fallback...');
 
         // Fallback 1: Direct hidden input (common in Google forms)
         const stateInputs = document.querySelectorAll('input[name="REGION_CODE"], input[name="STATE"], input[name="ADMIN_AREA"]');
@@ -1268,27 +1268,27 @@ async function fillCardForm() {
           input.value = val;
           input.dispatchEvent(new Event('input', { bubbles: true }));
           input.dispatchEvent(new Event('change', { bubbles: true }));
-          console.log('[Zarif] Google Pay: Set hidden state input to', val);
+          console.log('[Timurbro302] Google Pay: Set hidden state input to', val);
         }
 
         // Fallback 2: Visible text input (if it's not a dropdown)
         const visibleStateInput = findInputByLabel('State') || document.querySelector('input[placeholder="State"]');
         if (visibleStateInput) {
           await simulateTyping(visibleStateInput, targetState);
-          console.log('[Zarif] Google Pay: Filled visible State input');
+          console.log('[Timurbro302] Google Pay: Filled visible State input');
         }
       }
 
       console.log('✅ Google Pay: Address filling completed');
 
       // ===== STEP 3: FILL CARD DETAILS (After country & address) =====
-      console.log('[Zarif] Google Pay: Step 3 - Filling Card Details (Late Fill)');
+      console.log('[Timurbro302] Google Pay: Step 3 - Filling Card Details (Late Fill)');
       await sleep(1000);
 
       // Card number
       const cardNumInput = findInputByLabel('Card number') || findInputByLabel('card') || document.querySelector('input[placeholder*="Card number"]');
       if (cardNumInput) {
-        console.log('[Zarif] Google Pay: Filling card number');
+        console.log('[Timurbro302] Google Pay: Filling card number');
         await simulateTyping(cardNumInput, card.card_number);
         await sleep(300);
       }
@@ -1299,13 +1299,13 @@ async function fillCardForm() {
       const combinedInput = document.querySelector('input[placeholder="MM/YY"]') || document.querySelector('input[aria-label="MM/YY"]');
 
       if (monthInput && yearInput) {
-        console.log('[Zarif] Google Pay: Found distinct Month/Year inputs');
+        console.log('[Timurbro302] Google Pay: Found distinct Month/Year inputs');
         await simulateTyping(monthInput, card.expiry_month);
         await sleep(300);
         await simulateTyping(yearInput, card.expiry_year.slice(-2));
         await sleep(300);
       } else if (combinedInput || findInputByLabel('expir')) {
-        console.log('[Zarif] Google Pay: Found combined Expiry input');
+        console.log('[Timurbro302] Google Pay: Found combined Expiry input');
         const targetInput = combinedInput || findInputByLabel('expir');
         const expiryStr = `${card.expiry_month}/${card.expiry_year.slice(-2)}`;
         await simulateTyping(targetInput, expiryStr);
@@ -1314,7 +1314,7 @@ async function fillCardForm() {
         // Fallback: try finding by label "MM" if not found above
         const mmLabelInput = findInputByLabel('MM');
         if (mmLabelInput) {
-          console.log('[Zarif] Google Pay: Found Month input by label, assuming split');
+          console.log('[Timurbro302] Google Pay: Found Month input by label, assuming split');
           await simulateTyping(mmLabelInput, card.expiry_month);
           await sleep(300);
 
@@ -1330,7 +1330,7 @@ async function fillCardForm() {
       // CVC / Security code
       const cvcInp = findInputByLabel('Security code') || findInputByLabel('CVC') || findInputByLabel('CVV') || findInputByLabel('security') || document.querySelector('input[placeholder="CVC"]');
       if (cvcInp) {
-        console.log('[Zarif] Google Pay: Filling CVC');
+        console.log('[Timurbro302] Google Pay: Filling CVC');
         await simulateTyping(cvcInp, card.cvv);
         await sleep(300);
       }
@@ -1338,7 +1338,7 @@ async function fillCardForm() {
       // Cardholder name
       const nameInp = findInputByLabel('Cardholder name') || findInputByLabel('name on card') || findInputByLabel('cardholder') || document.querySelector('input[placeholder="Cardholder name"]');
       if (nameInp) {
-        console.log('[Zarif] Google Pay: Filling name');
+        console.log('[Timurbro302] Google Pay: Filling name');
         await simulateTyping(nameInp, randomData.name);
         await sleep(300);
       }
@@ -1413,14 +1413,14 @@ async function fillCardFormWithPrecard(card, randomData) {
       const expiryInput = document.querySelector('input[placeholder*="MM/YY"]') || document.querySelector('input[aria-label*="MM/YY"]') || document.querySelector('input[placeholder*="CVC"]');
 
       if (initialCardNumInput && !expiryInput) {
-        console.log('[Zarif] Google Pay (Pre-card): Collapsed form detected (Stage 1)');
-        console.log('[Zarif] Google Pay (Pre-card): Filling Card Number first to trigger expansion...');
+        console.log('[Timurbro302] Google Pay (Pre-card): Collapsed form detected (Stage 1)');
+        console.log('[Timurbro302] Google Pay (Pre-card): Filling Card Number first to trigger expansion...');
 
         await simulateTyping(initialCardNumInput, card.card_number);
         initialCardNumInput.dispatchEvent(new Event('change', { bubbles: true }));
         initialCardNumInput.dispatchEvent(new Event('blur', { bubbles: true }));
 
-        console.log('[Zarif] Google Pay (Pre-card): Waiting for form expansion...');
+        console.log('[Timurbro302] Google Pay (Pre-card): Waiting for form expansion...');
         await sleep(2000); // Wait for animation/render
 
         // Wait up to 5 more seconds for expiry input to appear
@@ -1429,7 +1429,7 @@ async function fillCardFormWithPrecard(card, randomData) {
           await sleep(500);
           attempts++;
         }
-        console.log('[Zarif] Google Pay (Pre-card): Form expansion wait complete');
+        console.log('[Timurbro302] Google Pay (Pre-card): Form expansion wait complete');
       }
     }
     // SKIP FOR GOOGLE PAY (Late fill)
@@ -1495,7 +1495,7 @@ async function fillCardFormWithPrecard(card, randomData) {
     const countrySelect = document.querySelector('select');
     if (countrySelect) {
       const options = countrySelect.querySelectorAll('option');
-      console.log('[Zarif Precard] Setting country to:', selectedCountry);
+      console.log('[Timurbro302 Precard] Setting country to:', selectedCountry);
 
       let countryFound = false;
       for (const opt of options) {
@@ -1646,12 +1646,12 @@ async function fillCardFormWithPrecard(card, randomData) {
 
     // GOOGLE PAY LATE FILL
     if (isGooglePay) {
-      console.log('[Zarif] Google Pay (Pre-card): Late filling card details & checking State');
+      console.log('[Timurbro302] Google Pay (Pre-card): Late filling card details & checking State');
       await sleep(1000);
 
       // State Fallback (Direct Set)
       const targetState = data.state || 'Maharashtra';
-      console.log('[Zarif] Google Pay (Pre-card): Checking/Setting State:', targetState);
+      console.log('[Timurbro302] Google Pay (Pre-card): Checking/Setting State:', targetState);
 
       const stateInputs = document.querySelectorAll('input[name="REGION_CODE"], input[name="STATE"], input[name="ADMIN_AREA"]');
       for (const input of stateInputs) {
@@ -1665,7 +1665,7 @@ async function fillCardFormWithPrecard(card, randomData) {
           input.value = val;
           input.dispatchEvent(new Event('input', { bubbles: true }));
           input.dispatchEvent(new Event('change', { bubbles: true }));
-          console.log('[Zarif] Google Pay (Pre-card): Set hidden state input to', val);
+          console.log('[Timurbro302] Google Pay (Pre-card): Set hidden state input to', val);
         }
       }
 
@@ -1697,13 +1697,13 @@ async function fillCardFormWithPrecard(card, randomData) {
       const combinedInput = document.querySelector('input[placeholder="MM/YY"]') || document.querySelector('input[aria-label="MM/YY"]');
 
       if (monthInput && yearInput) {
-        console.log('[Zarif] Google Pay (Pre-card): Found distinct Month/Year inputs');
+        console.log('[Timurbro302] Google Pay (Pre-card): Found distinct Month/Year inputs');
         await simulateTyping(monthInput, card.expiry_month);
         await sleep(300);
         await simulateTyping(yearInput, card.expiry_year.slice(-2));
         await sleep(300);
       } else if (combinedInput || findInputByLabel('expir')) {
-        console.log('[Zarif] Google Pay (Pre-card): Found combined Expiry input');
+        console.log('[Timurbro302] Google Pay (Pre-card): Found combined Expiry input');
         const targetInput = combinedInput || findInputByLabel('expir');
         const expiryStr = `${card.expiry_month}/${card.expiry_year.slice(-2)}`;
         await simulateTyping(targetInput, expiryStr);
@@ -1712,7 +1712,7 @@ async function fillCardFormWithPrecard(card, randomData) {
         // Fallback: try finding by label "MM" if not found above
         const mmLabelInput = findInputByLabel('MM');
         if (mmLabelInput) {
-          console.log('[Zarif] Google Pay (Pre-card): Found Month input by label, assuming split');
+          console.log('[Timurbro302] Google Pay (Pre-card): Found Month input by label, assuming split');
           await simulateTyping(mmLabelInput, card.expiry_month);
           await sleep(300);
 
@@ -2526,7 +2526,7 @@ if (window.location.hostname === 'chatgpt.com' ||
 // ========== Auto-Skip ChatGPT Onboarding Popups ==========
 // Automatically clicks "Skip" on post-signup onboarding dialogs
 if (window.location.hostname === 'chatgpt.com' || window.location.hostname === 'chat.openai.com') {
-  console.log('[Zarif] ChatGPT page detected - watching for onboarding popups to skip...');
+  console.log('[Timurbro302] ChatGPT page detected - watching for onboarding popups to skip...');
 
   const skipOnboardingPopups = () => {
     // Look for skip/continue buttons on onboarding dialogs
@@ -2535,7 +2535,7 @@ if (window.location.hostname === 'chatgpt.com' || window.location.hostname === '
       const btnText = (btn.textContent || btn.innerText || '').trim().toLowerCase();
       // Match "Skip", "Skip Tour", or "Continue" buttons
       if (btnText === 'skip' || btnText === 'skip tour' || btnText === 'continue') {
-        console.log('[Zarif] Found "' + btnText + '" button on onboarding popup, clicking...');
+        console.log('[Timurbro302] Found "' + btnText + '" button on onboarding popup, clicking...');
         btn.click();
         return true;
       }
@@ -2553,7 +2553,7 @@ if (window.location.hostname === 'chatgpt.com' || window.location.hostname === '
     skipOnboardingPopups(); // Keep trying to skip, don't stop after first one
 
     if (onboardingCheckCount >= maxOnboardingChecks) {
-      console.log('[Zarif] Stopped checking for onboarding popups (timeout)');
+      console.log('[Timurbro302] Stopped checking for onboarding popups (timeout)');
       clearInterval(onboardingInterval);
     }
   }, 2000);
@@ -2632,20 +2632,20 @@ async function fillStripeIframeInput(fieldType, value) {
 
   if (input) {
     await simulateTyping(input, value);
-    console.log(`[Zarif Stripe] Filled ${fieldType} in iframe`);
+    console.log(`[Timurbro302 Stripe] Filled ${fieldType} in iframe`);
   }
 }
 
 // Auto-detect if we're in Stripe iframe and listen for fill commands
 if (isStripeIframe) {
-  console.log('[Zarif] Running inside Stripe iframe');
+  console.log('[Timurbro302] Running inside Stripe iframe');
 }
 
 // ========== K12 Auth.OpenAI.com Page Handlers ==========
 
 // Check if we're on an OpenAI auth page
 if (window.location.hostname === 'auth.openai.com') {
-  console.log('[Zarif K12] Detected auth.openai.com page');
+  console.log('[Timurbro302 K12] Detected auth.openai.com page');
   let lastAuthPath = window.location.pathname;
 
   // Wait for page to load then handle
@@ -2667,14 +2667,14 @@ async function handleOpenAIAuthPage() {
 
   try {
     const currentPath = window.location.pathname;
-    console.log('[Zarif K12] Current path:', currentPath);
+    console.log('[Timurbro302 K12] Current path:', currentPath);
 
     const storage = await chrome.storage.local.get(['k12Accounts', 'k12PendingAccount']);
     const accounts = storage.k12Accounts || [];
     const pendingAccount = storage.k12PendingAccount || null;
 
     if (!pendingAccount && accounts.length === 0) {
-      console.log('[Zarif K12] No K12 accounts found');
+      console.log('[Timurbro302 K12] No K12 accounts found');
       return;
     }
 
@@ -2697,24 +2697,24 @@ async function handleOpenAIAuthPage() {
 
     const targetAccount = matchingAccount || pendingAccount || accounts[0];
     if (!targetAccount) {
-      console.log('[Zarif K12] No target account found for autofill');
+      console.log('[Timurbro302 K12] No target account found for autofill');
       return;
     }
 
-    console.log('[Zarif K12] Using account:', targetAccount.email);
+    console.log('[Timurbro302 K12] Using account:', targetAccount.email);
 
     if (currentPath.includes('/create-account/password') || currentPath.includes('/password')) {
-      console.log('[Zarif K12] Detected password page, auto-filling...');
+      console.log('[Timurbro302 K12] Detected password page, auto-filling...');
       await fillPasswordPage(targetAccount.password);
     }
 
     if (currentPath.includes('/email-verification') || currentPath.includes('/verification')) {
-      console.log('[Zarif K12] Detected verification page');
+      console.log('[Timurbro302 K12] Detected verification page');
       showVerificationNotification();
     }
 
     if (currentPath.includes('/about-you') || currentPath.includes('/onboarding') || currentPath.includes('/profile')) {
-      console.log('[Zarif K12] Detected profile page, auto-filling...');
+      console.log('[Timurbro302 K12] Detected profile page, auto-filling...');
       await fillAboutYouPage();
     }
   } finally {
@@ -2863,12 +2863,12 @@ async function fillPasswordPage(password) {
 
   await typeWithEvents(passwordInput, password);
   showNotification('🔑 Password auto-filled from K12 account!', 'success');
-  console.log('[Zarif K12] Password filled');
+  console.log('[Timurbro302 K12] Password filled');
 
   await sleep(400);
   const clicked = await clickContinueButton(passwordInput);
   if (!clicked) {
-    console.log('[Zarif K12] Continue button not clickable yet');
+    console.log('[Timurbro302 K12] Continue button not clickable yet');
   }
 }
 
@@ -2891,7 +2891,7 @@ async function fillAboutYouPage() {
 
   const birthdayFilled = await fillBirthdayFields();
   if (!birthdayFilled) {
-    console.log('[Zarif K12] Birthday fields not found');
+    console.log('[Timurbro302 K12] Birthday fields not found');
   }
 
   showNotification('👤 Profile info auto-filled!', 'success');
@@ -2901,7 +2901,7 @@ async function fillAboutYouPage() {
   const contextElement = firstNameInput || lastNameInput || nameInput || document.querySelector('form');
   const clicked = await clickContinueButton(contextElement);
   if (!clicked) {
-    console.log('[Zarif K12] Continue button not clickable on profile step');
+    console.log('[Timurbro302 K12] Continue button not clickable on profile step');
   }
 }
 
@@ -2912,18 +2912,18 @@ function showVerificationNotification() {
 // ========== Live CC Checker Handler (teamcsb.com) ==========
 
 async function handleLiveCCCheck(cardLines) {
-  console.log('[Zarif Live CC] Starting check process on teamcsb.com...');
+  console.log('[Timurbro302 Live CC] Starting check process on teamcsb.com...');
 
   // 1. Wait for textarea
   const textarea = await waitForElement('textarea', 10000).catch(() => null);
 
   if (!textarea) {
-    console.error('[Zarif Live CC] Textarea not found');
+    console.error('[Timurbro302 Live CC] Textarea not found');
     return { success: false, error: 'Textarea not found' };
   }
 
   // 2. Clear and Input Cards (Nuclear Method)
-  console.log('[Zarif Live CC] Found textarea, inserting cards...');
+  console.log('[Timurbro302 Live CC] Found textarea, inserting cards...');
   textarea.focus();
   textarea.select();
   document.execCommand('insertText', false, cardLines);
@@ -2931,7 +2931,7 @@ async function handleLiveCCCheck(cardLines) {
   // Verify input
   await sleep(100);
   if (!textarea.value || textarea.value.trim() === '') {
-    console.warn('[Zarif Live CC] execCommand failed, fallback to native value setter');
+    console.warn('[Timurbro302 Live CC] execCommand failed, fallback to native value setter');
     const nativeTextAreaValueSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value").set;
     nativeTextAreaValueSetter.call(textarea, cardLines);
     textarea.dispatchEvent(new Event('input', { bubbles: true }));
@@ -2944,7 +2944,7 @@ async function handleLiveCCCheck(cardLines) {
   await sleep(500);
 
   // 3. Find and Click Start Button
-  console.log('[Zarif Live CC] Looking for Start Validation button...');
+  console.log('[Timurbro302 Live CC] Looking for Start Validation button...');
 
   const findAndClickButton = async () => {
     const buttons = Array.from(document.querySelectorAll('button'));
@@ -2956,7 +2956,7 @@ async function handleLiveCCCheck(cardLines) {
     });
 
     if (startBtn) {
-      console.log('[Zarif Live CC] Found button:', startBtn.textContent);
+      console.log('[Timurbro302 Live CC] Found button:', startBtn.textContent);
       startBtn.scrollIntoView({ behavior: 'auto', block: 'center' });
       await sleep(200);
 
@@ -2969,12 +2969,12 @@ async function handleLiveCCCheck(cardLines) {
       );
 
       if (reactPropsKey) {
-        console.log('[Zarif Live CC] Found React key:', reactPropsKey);
+        console.log('[Timurbro302 Live CC] Found React key:', reactPropsKey);
         const props = startBtn[reactPropsKey];
 
         // Try to find onClick in props chain
         if (props && props.onClick) {
-          console.log('[Zarif Live CC] INVOKING React onClick DIRECTLY!');
+          console.log('[Timurbro302 Live CC] INVOKING React onClick DIRECTLY!');
           props.onClick({
             preventDefault: () => { },
             stopPropagation: () => { },
@@ -2984,7 +2984,7 @@ async function handleLiveCCCheck(cardLines) {
           });
           reactClicked = true;
         } else if (props && props.children && props.children.props && props.children.props.onClick) {
-          console.log('[Zarif Live CC] INVOKING nested React onClick!');
+          console.log('[Timurbro302 Live CC] INVOKING nested React onClick!');
           props.children.props.onClick({ preventDefault: () => { }, stopPropagation: () => { } });
           reactClicked = true;
         }
@@ -2993,13 +2993,13 @@ async function handleLiveCCCheck(cardLines) {
       // Also try __reactFiber$ for function components
       const fiberKey = Object.keys(startBtn).find(key => key.startsWith('__reactFiber$'));
       if (fiberKey && !reactClicked) {
-        console.log('[Zarif Live CC] Found React Fiber:', fiberKey);
+        console.log('[Timurbro302 Live CC] Found React Fiber:', fiberKey);
         let fiber = startBtn[fiberKey];
 
         // Walk up the fiber tree to find onClick
         while (fiber) {
           if (fiber.memoizedProps && fiber.memoizedProps.onClick) {
-            console.log('[Zarif Live CC] INVOKING Fiber onClick!');
+            console.log('[Timurbro302 Live CC] INVOKING Fiber onClick!');
             fiber.memoizedProps.onClick({ preventDefault: () => { }, stopPropagation: () => { }, target: startBtn });
             reactClicked = true;
             break;
@@ -3009,7 +3009,7 @@ async function handleLiveCCCheck(cardLines) {
       }
 
       if (!reactClicked) {
-        console.log('[Zarif Live CC] No React handler found, trying debugger click...');
+        console.log('[Timurbro302 Live CC] No React handler found, trying debugger click...');
         // Fallback to debugger click
         const rect = startBtn.getBoundingClientRect();
         const x = Math.round(rect.left + rect.width / 2);
@@ -3030,7 +3030,7 @@ async function handleLiveCCCheck(cardLines) {
   // Retry clicking a few times
   for (let i = 0; i < 3; i++) {
     if (await findAndClickButton()) {
-      console.log(`[Zarif Live CC] Clicked button (attempt ${i + 1})`);
+      console.log(`[Timurbro302 Live CC] Clicked button (attempt ${i + 1})`);
       await sleep(1500); // Wait longer for debugger-based click
     } else {
       await sleep(500);
@@ -3058,7 +3058,7 @@ async function handleLiveCCCheck(cardLines) {
           action: 'liveccExtractResults', // Match the background.js handler
           results: { result } // Wrap to match expected format
         });
-        console.log('[Zarif Live CC] Complete:', result);
+        console.log('[Timurbro302 Live CC] Complete:', result);
       } else {
         // Just log progress internally, background.js polls independently? 
         // Actually background.js expects a message or we can send one.
@@ -3067,7 +3067,7 @@ async function handleLiveCCCheck(cardLines) {
       }
     } catch (e) {
       // Connection lost (tab closed?)
-      console.log('[Zarif Live CC] Connection lost, stopping poll');
+      console.log('[Timurbro302 Live CC] Connection lost, stopping poll');
       clearInterval(window.liveCCPollInterval);
     }
 

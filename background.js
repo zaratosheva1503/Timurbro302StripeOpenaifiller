@@ -277,7 +277,7 @@ async function generateTempEmail() {
 
     // Step 2: Generate random email address with short suffix
     const randomNum = Math.floor(Math.random() * 900) + 100; // 100-999
-    const emailName = `zarifcardauto${randomNum}`;
+    const emailName = `timurbro302cardauto${randomNum}`;
     const email = `${emailName}@${domain}`;
     const password = `Pass${randomNum}!`;
 
@@ -499,7 +499,7 @@ async function checkForFileChanges() {
         const currentHash = hashCode(text);
 
         if (lastModifiedTimes[file] && lastModifiedTimes[file] !== currentHash) {
-          console.log(`[Zarif Hot Reload] File changed: ${file} - Reloading extension...`);
+          console.log(`[Timurbro302 Hot Reload] File changed: ${file} - Reloading extension...`);
           chrome.runtime.reload();
           return;
         }
@@ -510,7 +510,7 @@ async function checkForFileChanges() {
       }
     }
   } catch (error) {
-    console.error('[Zarif Hot Reload] Error checking for changes:', error);
+    console.error('[Timurbro302 Hot Reload] Error checking for changes:', error);
   }
 }
 
@@ -526,7 +526,7 @@ function hashCode(str) {
 
 // Start hot reload watcher
 if (HOT_RELOAD_ENABLED) {
-  console.log('[Zarif Hot Reload] Hot reload enabled - watching for file changes...');
+  console.log('[Timurbro302 Hot Reload] Hot reload enabled - watching for file changes...');
   // Initial hash capture
   checkForFileChanges();
   // Start interval check
@@ -550,7 +550,7 @@ const KR_ZIP = '06130';
 const KR_STATE = 'Gangnam-gu';
 
 function generateRandomData(country = 'IN') {
-  console.log('[Zarif v6.2.0] generateRandomData called with country:', country);
+  console.log('[Timurbro302 v6.2.0] generateRandomData called with country:', country);
   if (country === 'IN') {
     // Generate unique Indian data
     const cityData = randomChoice(INDIAN_CITIES);
@@ -926,16 +926,16 @@ async function generateCardsFromAPI(bin, stripeTabId, callback, method = 'api', 
     cleanedBin = cleanBin(bin);
 
     if (cleanedBin.length < 6) {
-      console.error('[Zarif] BIN validation failed:', cleanedBin);
+      console.error('[Timurbro302] BIN validation failed:', cleanedBin);
       callback({ success: false, error: 'BIN must be at least 6 digits' });
       return;
     }
 
-    console.log('[Zarif v6.2.0] ===== CARD GENERATION START =====');
-    console.log('[Zarif v6.2.0] Country parameter received:', country);
-    console.log('[Zarif v6.2.0] Country type:', typeof country);
-    console.log('[Zarif v6.2.0] Using BIN:', cleanedBin);
-    console.log('[Zarif v6.2.0] Expiry:', expiryMonth + '/' + expiryYear);
+    console.log('[Timurbro302 v6.2.0] ===== CARD GENERATION START =====');
+    console.log('[Timurbro302 v6.2.0] Country parameter received:', country);
+    console.log('[Timurbro302 v6.2.0] Country type:', typeof country);
+    console.log('[Timurbro302 v6.2.0] Using BIN:', cleanedBin);
+    console.log('[Timurbro302 v6.2.0] Expiry:', expiryMonth + '/' + expiryYear);
 
     const payload = {
       action: "generateAdvance",
@@ -952,8 +952,8 @@ async function generateCardsFromAPI(bin, stripeTabId, callback, method = 'api', 
       balance: "500-1000"
     };
 
-    console.log('[Zarif] API Payload:', payload);
-    console.log('[Zarif] Making API request to cardbingenerator.com...');
+    console.log('[Timurbro302] API Payload:', payload);
+    console.log('[Timurbro302] Making API request to cardbingenerator.com...');
 
     // Add timeout to fetch request (30 seconds)
     const controller = new AbortController();
@@ -967,7 +967,7 @@ async function generateCardsFromAPI(bin, stripeTabId, callback, method = 'api', 
     let usedProxy = false;
 
     try {
-      console.log('[Zarif] Attempting direct API call...');
+      console.log('[Timurbro302] Attempting direct API call...');
       response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
@@ -980,8 +980,8 @@ async function generateCardsFromAPI(bin, stripeTabId, callback, method = 'api', 
         signal: controller.signal
       });
     } catch (directError) {
-      console.warn('[Zarif] Direct API call failed, trying CORS proxy:', directError.message);
-      console.log('[Zarif] Using proxy:', proxyUrl);
+      console.warn('[Timurbro302] Direct API call failed, trying CORS proxy:', directError.message);
+      console.log('[Timurbro302] Using proxy:', proxyUrl);
 
       try {
         response = await fetch(proxyUrl, {
@@ -994,14 +994,14 @@ async function generateCardsFromAPI(bin, stripeTabId, callback, method = 'api', 
           signal: controller.signal
         });
         usedProxy = true;
-        console.log('[Zarif] CORS proxy request successful');
+        console.log('[Timurbro302] CORS proxy request successful');
       } catch (proxyError) {
         clearTimeout(timeoutId);
         if (proxyError.name === 'AbortError') {
-          console.error('[Zarif] API request timed out after 30 seconds');
+          console.error('[Timurbro302] API request timed out after 30 seconds');
           callback({ success: false, error: 'API request timed out. Please try again.' });
         } else {
-          console.error('[Zarif] Both direct and proxy requests failed:', proxyError);
+          console.error('[Timurbro302] Both direct and proxy requests failed:', proxyError);
           callback({ success: false, error: 'Unable to reach API. Check your internet connection.' });
         }
         return;
@@ -1010,21 +1010,21 @@ async function generateCardsFromAPI(bin, stripeTabId, callback, method = 'api', 
 
     clearTimeout(timeoutId);
 
-    console.log('[Zarif] API Response Status:', response.status, response.statusText);
-    console.log('[Zarif] Response OK:', response.ok);
-    console.log('[Zarif] Used proxy:', usedProxy);
+    console.log('[Timurbro302] API Response Status:', response.status, response.statusText);
+    console.log('[Timurbro302] Response OK:', response.ok);
+    console.log('[Timurbro302] Used proxy:', usedProxy);
 
     if (!response.ok) {
-      console.error('[Zarif] API request failed with status:', response.status);
+      console.error('[Timurbro302] API request failed with status:', response.status);
       callback({ success: false, error: `API request failed: ${response.status} ${response.statusText}` });
       return;
     }
 
     const data = await response.json();
-    console.log('[Zarif] API Response Data:', data);
+    console.log('[Timurbro302] API Response Data:', data);
 
     if (data.success && data.data && data.data.cards) {
-      console.log('[Zarif] Successfully received', data.data.cards.length, 'cards from API');
+      console.log('[Timurbro302] Successfully received', data.data.cards.length, 'cards from API');
       // Use actual API card data with custom expiry
       const cards = data.data.cards.map((cardData, idx) => {
         let cardNumber, cvv;
@@ -1054,18 +1054,18 @@ async function generateCardsFromAPI(bin, stripeTabId, callback, method = 'api', 
         };
       });
 
-      console.log('[Zarif] Processed cards with custom expiry');
+      console.log('[Timurbro302] Processed cards with custom expiry');
       const randomData = generateRandomData(country);
-      console.log('[Zarif] Generated random data for country:', country);
+      console.log('[Timurbro302] Generated random data for country:', country);
       await storeAndFill(cards, randomData);
     } else {
-      console.error('[Zarif] API response missing cards data:', data);
+      console.error('[Timurbro302] API response missing cards data:', data);
       callback({ success: false, error: 'No cards generated from API. Response: ' + JSON.stringify(data) });
     }
 
   } catch (error) {
-    console.error('[Zarif] Generation error:', error);
-    console.error('[Zarif] Error stack:', error.stack);
+    console.error('[Timurbro302] Generation error:', error);
+    console.error('[Timurbro302] Error stack:', error.stack);
     callback({ success: false, error: error.message || 'Unknown error occurred' });
   }
 }
@@ -1094,13 +1094,13 @@ async function generatePrecardsFromAPI(bin, callback, method = 'api', country = 
     cleanedBin = cleanBin(bin);
 
     if (cleanedBin.length < 6) {
-      console.error('[Zarif Precards] BIN validation failed:', cleanedBin);
+      console.error('[Timurbro302 Precards] BIN validation failed:', cleanedBin);
       callback({ success: false, error: 'BIN must be at least 6 digits' });
       return;
     }
 
-    console.log('[Zarif Precards] Starting precard generation for country:', country);
-    console.log('[Zarif Precards] Using BIN:', cleanedBin);
+    console.log('[Timurbro302 Precards] Starting precard generation for country:', country);
+    console.log('[Timurbro302 Precards] Using BIN:', cleanedBin);
 
     const payload = {
       action: "generateAdvance",
@@ -1117,7 +1117,7 @@ async function generatePrecardsFromAPI(bin, callback, method = 'api', country = 
       balance: "500-1000"
     };
 
-    console.log('[Zarif Precards] Making API request...');
+    console.log('[Timurbro302 Precards] Making API request...');
 
     // Add timeout to fetch request (30 seconds)
     const controller = new AbortController();
@@ -1131,7 +1131,7 @@ async function generatePrecardsFromAPI(bin, callback, method = 'api', country = 
     let usedProxy = false;
 
     try {
-      console.log('[Zarif Precards] Attempting direct API call...');
+      console.log('[Timurbro302 Precards] Attempting direct API call...');
       response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
@@ -1144,8 +1144,8 @@ async function generatePrecardsFromAPI(bin, callback, method = 'api', country = 
         signal: controller.signal
       });
     } catch (directError) {
-      console.warn('[Zarif Precards] Direct API call failed, trying CORS proxy:', directError.message);
-      console.log('[Zarif Precards] Using proxy:', proxyUrl);
+      console.warn('[Timurbro302 Precards] Direct API call failed, trying CORS proxy:', directError.message);
+      console.log('[Timurbro302 Precards] Using proxy:', proxyUrl);
 
       try {
         response = await fetch(proxyUrl, {
@@ -1158,14 +1158,14 @@ async function generatePrecardsFromAPI(bin, callback, method = 'api', country = 
           signal: controller.signal
         });
         usedProxy = true;
-        console.log('[Zarif Precards] CORS proxy request successful');
+        console.log('[Timurbro302 Precards] CORS proxy request successful');
       } catch (proxyError) {
         clearTimeout(timeoutId);
         if (proxyError.name === 'AbortError') {
-          console.error('[Zarif Precards] API request timed out after 30 seconds');
+          console.error('[Timurbro302 Precards] API request timed out after 30 seconds');
           callback({ success: false, error: 'API request timed out. Please try again.' });
         } else {
-          console.error('[Zarif Precards] Both direct and proxy requests failed:', proxyError);
+          console.error('[Timurbro302 Precards] Both direct and proxy requests failed:', proxyError);
           callback({ success: false, error: 'Unable to reach API. Check your internet connection.' });
         }
         return;
@@ -1174,20 +1174,20 @@ async function generatePrecardsFromAPI(bin, callback, method = 'api', country = 
 
     clearTimeout(timeoutId);
 
-    console.log('[Zarif Precards] API Response Status:', response.status, response.statusText);
-    console.log('[Zarif Precards] Used proxy:', usedProxy);
+    console.log('[Timurbro302 Precards] API Response Status:', response.status, response.statusText);
+    console.log('[Timurbro302 Precards] Used proxy:', usedProxy);
 
     if (!response.ok) {
-      console.error('[Zarif Precards] API request failed:', response.status);
+      console.error('[Timurbro302 Precards] API request failed:', response.status);
       callback({ success: false, error: `API request failed: ${response.status}` });
       return;
     }
 
     const data = await response.json();
-    console.log('[Zarif Precards] API Response:', data);
+    console.log('[Timurbro302 Precards] API Response:', data);
 
     if (data.success && data.data && data.data.cards) {
-      console.log('[Zarif Precards] Received', data.data.cards.length, 'cards');
+      console.log('[Timurbro302 Precards] Received', data.data.cards.length, 'cards');
       // Use actual API card data with custom expiry for precards
       const cards = data.data.cards.map((cardData, idx) => {
         let cardNumber, cvv;
@@ -1221,12 +1221,12 @@ async function generatePrecardsFromAPI(bin, callback, method = 'api', country = 
       storePrecards(cards, randomData);
 
     } else {
-      console.error('[Zarif Precards] Missing cards data:', data);
+      console.error('[Timurbro302 Precards] Missing cards data:', data);
       callback({ success: false, error: 'No cards generated from API. Response: ' + JSON.stringify(data) });
     }
 
   } catch (error) {
-    console.error('[Zarif Precards] Error:', error);
+    console.error('[Timurbro302 Precards] Error:', error);
     callback({ success: false, error: error.message || 'Unknown error' });
   }
 }
@@ -1256,7 +1256,7 @@ function generateEmailName() {
   return result;
 }
 
-// Generate unique password: Zarif# + 6 random chars (total 12+ chars)
+// Generate unique password: Timurbro302# + 6 random chars (total 12+ chars)
 function generatePassword() {
   const letters = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz';
   const digits = '23456789';
@@ -1267,7 +1267,7 @@ function generatePassword() {
     suffix += chars.charAt(Math.floor(Math.random() * chars.length));
   }
   suffix = suffix.split('').sort(() => Math.random() - 0.5).join('');
-  return 'Zarif#' + suffix;
+  return 'Timurbro302#' + suffix;
 }
 
 // Send progress update to popup
